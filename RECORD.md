@@ -249,4 +249,28 @@
 - **統一されたブランド体験**:
   - 既存の「プロジェクト統計ツール」のデザイン言語（深みのあるZinc BlackとMonoタイポグラフィ）に揃えることで、開発者がツールを行き来しても違和感のない高品質なUXを実現。
 
+---
+
+## 2026-09-18: GitHub Releases 配布準備およびnote記事リンク整備
+
+### 1. 変更・実装内容
+- **配布用 zip アーカイブ生成スクリプト (`scripts/package.mjs`)**:
+  - `npm run package` により最新ビルドを実行し、実行に必要なファイル群（`dist/`, `bin/`, `package.json`, `schema.json`, `README.md`, `LICENSE`, `shipguard-ui.bat`）をまとめた `shipguard-v0.1.0.zip` をクロスプラットフォームで自動生成するスクリプトを配備。
+- **`package.json` メタデータ整備**:
+  - `repository`, `homepage`, `bugs`, `author` を公式GitHubリポジトリ（`tk030-lotto/shipguard`）に準拠して追加。
+- **リリースノート下書き作成 (`RELEASE_NOTES_v0.1.0.md`)**:
+  - 初回リリース v0.1.0 の機能（全5ルール、多形式レポート、監査ログ、Web UI、CI/CD連携等）と実行コマンドを網羅したリリースノートを作成。
+- **GitHub Draft リリースの配備**:
+  - Gitタグ `v0.1.0` を作成・プッシュ。
+  - GitHub CLI（`gh release create`）により、一般非公開の「下書き（Draft）」としてリリースを作成し、`shipguard-v0.1.0.zip` アセットを添付完了。
+- **note記事への配布リンク・ハッシュタグ追記**:
+  - `個人開発】本番公開するのがちょっと怖い。その不安を減らすために「shipguard」を作った.txt` の冒頭および末尾に、GitHub Releases の最新リリースページおよび直接ダウンロードURLを追記。
+  - 末尾に関連ハッシュタグ（`#個人開発`, `#セキュリティ`, `#Web開発` 等）を配置。
+
+### 2. 技術的決定・背景
+- **「下書き」状態の活用による安全な事前準備**:
+  - リポジトリのPrivate設定を維持したまま、GitHubの固定URL規則（`releases/latest`）に基づき記事側のリンクとリリース成果物を先行して確定。
+  - 公開判断時にはワンアクション（リポジトリのPublic化およびリリースのPublish）で即座に読者へ届く導線を確立した。
+
+
 
