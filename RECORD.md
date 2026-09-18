@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-09-18: コードレビュー指摘事項の改善実装
+
+### 1. 変更・実装内容
+
+| 対象 | 重要度 | 変更内容 |
+|------|--------|----------|
+| `src/core/scanner.ts` | Medium | ファイルスキップ時に `console.warn` で理由を出力 |
+| `src/core/scanner.ts` | Medium | `maxFileSizeBytes` 引数追加（設定可能なファイルサイズ閾値） |
+| `src/rules/cors.ts` | Medium | SEC-004正規表現に `cors('*')` パターン追加・`\b` アンカー追加・制限コメント明記 |
+| `src/config/schema.ts` | Medium | `ScanConfigSchema` 追加（`maxFileSizeBytes` 設定項目） |
+| `src/config/loader.ts` | Medium | `scan` フィールドの deepマージ対応 |
+| `src/types/index.ts` | Medium | `ShipguardConfig` に `scan` フィールド追加 |
+| `src/commands/scan.ts` | Medium | `maxFileSizeBytes` を `collectFiles` に渡す配線 |
+| `src/logger/index.ts` | Low | `execSync` → `exec+promisify`（非同期化・ブロッキング解消） |
+| `src/cli.ts` | Low | `process.exit(0/1)` → `process.exitCode` 設定＋自然終了 |
+| `test/cors.test.ts` | Suggestion | `cors('*')` パターン・スペースバリアントの新規テスト追加 |
+| `test/scanner.test.ts` | Suggestion | `maxFileSizeBytes` 閾値スキップの異常系テスト追加 |
+| `test/config.test.ts` | Suggestion | `scan.maxFileSizeBytes` 正常・異常系テスト追加 |
+
+### 2. テスト結果
+
+- **改善前**: 46テスト全件PASS
+- **改善後**: 53テスト全件PASS（新規7件追加）
+- **型チェック**: PASS
+- **コミット**: `cbdf998`
+
+### 3. 技術的決定・背景
+
+- **`console.warn` の採用**: ファイル読み込み失敗は致命的ではないため `throw` ではなく警告出力でスキャン継続とした。
+- **`process.exitCode` への変更**: `process.exit()` はテスト実行プロセス自体を終了させるリスクがあるため、Node.js の自然終了フックに任せる方式に変更。
+- **CORS正規表現の `\b` アンカー**: `mycors()` のような誤検知を防ぐためワードバウンダリを追加。
+
+---
+
 ## 2026-09-18: プロジェクト初期設計および仕様書の策定・多層化改訂
 
 ### 1. 変更・実装内容
