@@ -107,27 +107,40 @@ export async function startUiServer(
     res.end("Not Found");
   });
 
-  const desiredPort = options.port ?? 3773;
+  let currentPort = options.port ?? 3773;
+  const maxPortAttempts = 10;
+  let attempts = 0;
 
   return new Promise((resolve, reject) => {
+    function tryListen(port: number) {
+      server.listen(port, async () => {
+        const actualPort = (server.address() as any).port;
+        const url = `http://localhost:${actualPort}`;
+
+        console.log("");
+        console.log(pc.bold(pc.cyan("  ▲ shipguard UI")) + pc.gray(" — ローカルダッシュボード稼働中"));
+        console.log(pc.green(`  ✔ ダッシュボードURL: ${pc.underline(pc.bold(url))}`));
+        console.log(pc.gray("  (Ctrl + C で終了します)\n"));
+
+        if (options.open !== false) {
+          await openInBrowser(url);
+        }
+
+        resolve({ server, port: actualPort, url });
+      });
+    }
+
     server.on("error", (err: any) => {
-      reject(err);
-    });
-
-    server.listen(desiredPort, async () => {
-      const actualPort = (server.address() as any).port;
-      const url = `http://localhost:${actualPort}`;
-
-      console.log("");
-      console.log(pc.bold(pc.cyan("  ▲ shipguard UI")) + pc.gray(" — ローカルダッシュボード稼働中"));
-      console.log(pc.green(`  ✔ ダッシュボードURL: ${pc.underline(pc.bold(url))}`));
-      console.log(pc.gray("  (Ctrl + C で終了します)\n"));
-
-      if (options.open !== false) {
-        await openInBrowser(url);
+      if (err.code === "EADDRINUSE" && attempts < maxPortAttempts && !options.port) {
+        attempts++;
+        currentPort++;
+        console.warn(pc.yellow(`  [UI] ポート ${currentPort - 1} は使用中です。ポート ${currentPort} で再試行します...`));
+        tryListen(currentPort);
+      } else {
+        reject(err);
       }
-
-      resolve({ server, port: actualPort, url });
     });
+
+    tryListen(currentPort);
   });
 }
