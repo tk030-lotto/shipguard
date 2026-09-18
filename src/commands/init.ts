@@ -29,6 +29,10 @@ export const DEFAULT_CONFIG_TEMPLATE = {
     enabled: true,
     path: ".shipguard/audit.log",
   },
+  scan: {
+    // スキャン対象ファイルの最大サイズ（バイト）。デフォルト: 2MB (2097152)
+    maxFileSizeBytes: 2097152,
+  },
 };
 
 /**

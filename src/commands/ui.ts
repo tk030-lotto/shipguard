@@ -84,7 +84,16 @@ export async function startUiServer(
     if (req.method === "POST" && pathname === "/api/scan") {
       try {
         const body = await readJsonBody(req);
-        const targetDir = body.targetDir ? path.resolve(body.targetDir) : currentTargetDir;
+        const rawTargetDir = body.targetDir ? String(body.targetDir) : null;
+        const targetDir = rawTargetDir ? path.resolve(rawTargetDir) : currentTargetDir;
+
+        // パストラバーサルガード: null バイトを含む不正パスを拒否
+        if (rawTargetDir && rawTargetDir.includes("\0")) {
+          res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ success: false, error: "Invalid targetDir: null byte detected" }));
+          return;
+        }
+
         currentTargetDir = targetDir;
 
         latestResult = await runScan({ cwd: targetDir, format: "terminal" });

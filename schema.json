@@ -75,6 +75,18 @@
         }
       },
       "additionalProperties": false
+    },
+    "scan": {
+      "type": "object",
+      "properties": {
+        "maxFileSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2097152,
+          "description": "Maximum file size in bytes to scan. Files larger than this value will be skipped. Default: 2MB (2097152)"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
