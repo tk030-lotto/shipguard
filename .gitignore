@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 dist/
 .shipguard/
 *.log
@@ -6,3 +6,4 @@ dist/
 .env.local
 .DS_Store
 Thumbs.db
+*.zip

@@ -17,8 +17,18 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && node scripts/package.mjs"
   },
+  "author": "tk030",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tk030-lotto/shipguard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tk030-lotto/shipguard/issues"
+  },
+  "homepage": "https://github.com/tk030-lotto/shipguard#readme",
   "keywords": [
     "security",
     "audit",
