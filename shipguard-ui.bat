@@ -1,4 +1,5 @@
 @echo off
+chcp 932 >nul
 setlocal
 cd /d "%~dp0"
 title shipguard UI Launcher
@@ -17,7 +18,7 @@ echo   自動的にブラウザが開きます。終了時はこのウィンドウを閉じてください。
 echo ========================================================
 echo.
 
-node bin\shipguard.js ui
+node "bin\shipguard.js" ui
 
 if %errorlevel% neq 0 (
     echo.
