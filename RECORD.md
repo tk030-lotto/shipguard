@@ -34,3 +34,40 @@
 - **タイトル・キャッチコピー案**:
   - 「【個人開発】個人で作ったWebアプリを本番公開する前の『ヒヤリハット』をゼロにするCLIを作った」
   - 「SupabaseのRLS忘れ・Stripeキー漏洩をデプロイ直前にローカルで弾く『shipguard』のアーキテクチャ」
+
+---
+
+## 2026-09-18: Phase 1 コア最小構成の実装完了
+
+### 1. 変更・実装内容
+- **TypeScriptビルド・実行環境の構築**:
+  - `package.json`, `tsconfig.json`, `tsup.config.ts` を配備。ESM/NodeNext環境でビルド完了（`dist/` 出力）。
+- **コア型定義 (`src/types/index.ts`)**:
+  - `Violation`, `FileEntry`, `Rule`, `ScanContext`, `ScanResult`, `ShipguardConfig` を定義。
+- **ファイル収集エンジン (`src/core/scanner.ts`)**:
+  - `fast-glob` と `ignore` を用いた `.gitignore` 準拠の走査ロジック。
+  - テストファイル、バイナリファイル、2MB超の巨大ファイル、ロックファイル等の自動除外。
+- **シークレット検知ルール (`src/rules/secrets.ts`)**:
+  - `SEC-001`: Stripe, OpenAI, GitHub PAT, AWS Access Key, Resend, Slack, Google API Key 等のハードコード検知。
+  - 検知トークンの安全なマスキング表示（例: `sk_live...3456`）、および `.env.example` 等のプレースホルダー除外ロジック。
+- **CLIスキャンコマンド & エントリーポイント (`src/commands/scan.ts`, `src/cli.ts`, `bin/shipguard.js`)**:
+  - `commander` による `shipguard scan` コマンド。
+  - `picocolors` を用いたターミナル出力（重要度バッジ・該当コード表示・サマリーテーブル）。
+  - Exit Code制御（重大違反検知時は `1`、合格時は `0`）。
+- **単体テスト (`test/secrets.test.ts`, `test/scanner.test.ts`)**:
+  - `vitest` による全4テスト全件PASS、および `tsc --noEmit` 型検証PASS。
+
+### 2. 技術的決定・背景
+- **ビルドツール選定**:
+  - 高速かつ最小構成でESMおよびTypeScript型定義（d.ts）を出力できる `tsup` を採用。
+- **テストファイルのノイズ除外**:
+  - テストコード自体に含まれるモックシークレットが本番監査で誤検知されることを防ぐため、`DEFAULT_IGNORE` にテストディレクトリ・ファイルを標準除外として追加。
+- **300行原則の徹底**:
+  - 全ファイルを154行以下に分割し、1ファイル1責務を堅持。
+
+### 3. 📝 記事ネタ・発信知見
+- **提供価値**:
+  - 静的解析CLIにおける「モックシークレットと実シークレットの境界」「Exit CodeによるCIパイプラインの停止機構」の設計パターン。
+- **タイトル案**:
+  - 「TypeScript + tsup + vitest で作る、依存最小のセキュリティ監査CLI開発記（Phase 1: コアエンジンの確立）」
+
