@@ -106,4 +106,40 @@
   - 「なぜ単一ファイル正規表現のセキュリティ検知は破綻するのか：マイグレーション横断突合とノイズゼロ化の技術」
   - 「Stripe / Supabase / Clerk のキーを誤認させないためのコンテキスト認識型静的解析手法」
 
+---
+
+## 2026-09-18: Phase 3 監査ログ永続化・マルチフォーマットレポーター・補助コマンドの実装完了
+
+### 1. 変更・実装内容
+- **監査ログ永続化機能 (`src/logger/index.ts`)**:
+  - 仕様書第6項準拠の NDJSON（Newline Delimited JSON）追記モジュールを実装。
+  - `git rev-parse HEAD` による Git コミットハッシュの安全な自動取得（Git非管理下でもフォールバック動作）。
+  - `.shipguard/audit.log` への自動記録および設定ファイル（`logging.enabled`, `logging.path`）との連動。
+- **マルチフォーマットレポーター (`src/reporter/`)**:
+  - `src/reporter/json.ts`: 機械可読な JSON 出力機能。
+  - `src/reporter/markdown.ts`: GitHub PR や CI レポートに適した洗練された Markdown 出力機能。
+  - `src/reporter/index.ts`: `--format <terminal|json|markdown>` および `-o, --output <path>` オプションに対応した一元出力ディスパッチャ。
+- **補助コマンドの実装 (`src/commands/init.ts`, `src/commands/history.ts`)**:
+  - `shipguard init`: 設定ファイル `.shipguardrc.json` の雛形生成（既存ファイルの安全保護・`--force` オプション対応）。
+  - `shipguard history`: `.shipguard/audit.log` の履歴を最新順に一覧表示（`-n, --limit` 表示件数制御、`--clear` ログ削除対応）。
+  - エディタ補完用の JSON Schema（`schema.json`）をルートに配置し、`package.json` の配布対象に含める。
+- **CI/CD連携とテスト網羅**:
+  - `.github/workflows/shipguard.yml`: GitHub Actions による自動監査・Markdownレポート生成ワークフロー。
+  - 単体・統合テストを拡充（全11テストファイル・41テストケース全件合格、型エラー0件、tsupビルド成功）。
+  - 全TypeScriptコードで300行原則を徹底（最大177行）。
+
+### 2. 技術的決定・背景
+- **サーバー不要の監査追跡性（NDJSONローカルログ）**:
+  - 外部DBやクラウドサービスを契約・運用せず、`.shipguard/audit.log` に1行1レコードのNDJSONで追記することで、Git管理外のローカル環境でも監査履歴・合否ステータスを時系列で高速・安全に確認可能にした。
+- **CIパイプラインおよびPR連携の最適化**:
+  - `--format markdown` と `--output` により、GitHub Actions 上で監査レポートを生成し、PRコメントやアーティファクトとしてそのまま掲示できる設計とした。
+
+### 3. 📝 記事ネタ・発信知見
+- **提供価値**:
+  - 「外部サービス代0円・データベース不要。NDJSONを使ったローカル完結型CLI監査ログの設計思想」
+  - 「個人開発のデプロイ事故を防ぐ：GitHub Actionsで動く自作セキュリティ監査ツールの作り方」
+- **タイトル案**:
+  - 「【個人開発】本番ローンチ前のセキュリティ事故を防ぐCLI『shipguard』を作った話（Phase 3: ログ永続化とCI統合）」
+  - 「サーバーレス・DBレスで履歴管理できるTypeScript製CLIツールのアーキテクチャ」
+
 

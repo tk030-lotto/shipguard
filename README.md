@@ -59,9 +59,11 @@ npx shipguard scan
 #### 実行オプション
 
 ```bash
-npx shipguard scan --strict         # WARNINGでも終了コード1を返す
-npx shipguard scan --format markdown # audit-report.md を出力
-npx shipguard scan --ignore "test/**" # 特定パスを除外
+npx shipguard scan --strict               # WARNING/LOWでも終了コード1を返す
+npx shipguard scan --format markdown      # Markdown形式で標準出力
+npx shipguard scan -o audit-report.md     # ファイルにレポートを保存
+npx shipguard scan --format json          # 機械可読なJSON形式で出力
+npx shipguard scan --ignore "test/**"     # 特定パスを除外
 ```
 
 ## 設定ファイル (`.shipguardrc.json`)
@@ -70,7 +72,7 @@ npx shipguard scan --ignore "test/**" # 特定パスを除外
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/your-username/shipguard/main/schema.json",
+  "$schema": "https://raw.githubusercontent.com/tk030-lotto/shipguard/main/schema.json",
   "ignore": [
     "**/*.test.ts",
     "docs/**"

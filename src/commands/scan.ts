@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { loadConfig } from "../config/loader.js";
 import { collectFiles } from "../core/scanner.js";
-import { printScanReport } from "../reporter/terminal.js";
+import { appendAuditLog, getGitCommitHash } from "../logger/index.js";
+import { outputReport } from "../reporter/index.js";
 import { executeRules } from "../rules/index.js";
 import type { ScanOptions, ScanResult, Violation } from "../types/index.js";
 
@@ -59,6 +60,7 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
   const result: ScanResult = {
     id: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
+    gitCommitHash: getGitCommitHash(rootDir),
     summary: {
       scannedFiles: files.length,
       totalViolations: violations.length,
@@ -71,8 +73,11 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
     violations,
   };
 
-  // 4. コンソール出力
-  printScanReport(result);
+  // 4. 監査ログのローカル永続化 (.shipguard/audit.log)
+  await appendAuditLog(result, rootDir, config);
+
+  // 5. レポート出力
+  await outputReport(result, options);
 
   return result;
 }

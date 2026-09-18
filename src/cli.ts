@@ -1,4 +1,6 @@
 import { Command } from "commander";
+import { runHistory } from "./commands/history.js";
+import { runInit } from "./commands/init.js";
 import { runScan } from "./commands/scan.js";
 import type { ScanOptions } from "./types/index.js";
 
@@ -13,20 +15,60 @@ program
   .command("scan", { isDefault: true })
   .description("プロジェクトを走査し、セキュリティ・設定不備を監査します")
   .option("-s, --strict", "WARNING/LOWレベルを含むすべての違反で終了コード1を返します")
+  .option("-f, --format <format>", "出力形式を指定します (terminal, markdown, json)", "terminal")
+  .option("-o, --output <path>", "レポート出力先ファイルパスを指定します")
   .option("-i, --ignore <patterns...>", "監査対象外とするGlobパターンを指定します")
-  .action(async (cmdOptions: { strict?: boolean; ignore?: string[] }) => {
-    try {
-      const options: ScanOptions = {
-        strict: Boolean(cmdOptions.strict),
-        ignore: cmdOptions.ignore,
-      };
+  .action(
+    async (cmdOptions: {
+      strict?: boolean;
+      format?: "terminal" | "markdown" | "json";
+      output?: string;
+      ignore?: string[];
+    }) => {
+      try {
+        const options: ScanOptions = {
+          strict: Boolean(cmdOptions.strict),
+          format: cmdOptions.format,
+          output: cmdOptions.output,
+          ignore: cmdOptions.ignore,
+        };
 
-      const result = await runScan(options);
+        const result = await runScan(options);
 
-      // 終了コードの制御
-      if (!result.summary.passed) {
-        process.exit(1);
+        // 終了コードの制御
+        if (!result.summary.passed) {
+          process.exit(1);
+        }
+        process.exit(0);
+      } catch (error) {
+        console.error("エラーが発生しました:", error);
+        process.exit(2);
       }
+    }
+  );
+
+program
+  .command("init")
+  .description(".shipguardrc.json 設定ファイルを生成します")
+  .option("--force", "既存ファイルがある場合も強制的に上書きします")
+  .action(async (options: { force?: boolean }) => {
+    try {
+      await runInit({ force: options.force });
+      process.exit(0);
+    } catch (error) {
+      console.error("エラーが発生しました:", error);
+      process.exit(2);
+    }
+  });
+
+program
+  .command("history")
+  .description("過去のスキャン実行ログを一覧表示します")
+  .option("-n, --limit <number>", "表示する最新ログ件数", (v) => parseInt(v, 10), 10)
+  .option("--clear", "監査履歴ログを削除します")
+  .action(async (options: { limit?: number; clear?: boolean }) => {
+    try {
+      await runHistory({ limit: options.limit, clear: options.clear });
       process.exit(0);
     } catch (error) {
       console.error("エラーが発生しました:", error);

@@ -10,7 +10,8 @@
   "type": "module",
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "schema.json"
   ],
   "scripts": {
     "build": "tsup",

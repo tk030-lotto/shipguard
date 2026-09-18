@@ -65,9 +65,32 @@ export interface ScanResult {
   violations: Violation[];
 }
 
+export interface AuditLogRecord {
+  id: string;
+  timestamp: string;
+  gitCommitHash?: string;
+  summary: {
+    scannedFiles: number;
+    totalViolations: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  passed: boolean;
+  violations: Array<{
+    ruleId: string;
+    filePath: string;
+    line: number;
+    message: string;
+    severity: Severity;
+  }>;
+}
+
 export interface ScanOptions {
   strict?: boolean;
   format?: "terminal" | "markdown" | "json";
+  output?: string;
   ignore?: string[];
   cwd?: string;
 }

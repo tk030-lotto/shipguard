@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ShipguardConfig",
+  "description": "Configuration schema for shipguard CLI",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference"
+    },
+    "ignore": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Glob patterns to ignore during scan"
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "SEC-001": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "off"]
+        },
+        "SEC-002": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "off"]
+        },
+        "SEC-003": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "off"]
+        },
+        "SEC-004": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "off"]
+        },
+        "CFG-001": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "off"]
+        }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["critical", "high", "medium", "low", "off"]
+      },
+      "description": "Severity override for rules"
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "migrationsDir": {
+          "type": "string",
+          "description": "Path to SQL migrations directory"
+        },
+        "excludeTables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tables to exclude from RLS checks"
+        }
+      },
+      "additionalProperties": false
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable or disable audit logging"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path to audit log file (NDJSON)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
