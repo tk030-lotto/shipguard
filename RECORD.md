@@ -274,10 +274,16 @@
   - リポジトリ内での自己監査実行時に `dist/cli.js` が生成されておらず失敗（`ERR_MODULE_NOT_FOUND`）していた問題を解消。
   - GitHub Actions が正常に **PASS（success）** することを確認。
 
+- **GitHubリポジトリおよびリリースの一般公開完了**:
+  - `bin/shipguard.js` に Git 上で実行可能属性（`+x` / 100755）を付与し、Linux CI での `Permission denied` を解消してCI完全グリーン化（`completed success`）。
+  - リポジトリの公開設定を `PUBLIC` に変更完了。
+  - GitHub Releases `v0.1.0` を正式公開（`Latest`）に変更完了。
+  - note記事内の最新リリースページおよび直接ダウンロードURLが全世界から利用可能となった。
+
 ### 2. 技術的決定・背景
-- **「下書き」状態の活用による安全な事前準備**:
-  - リポジトリのPrivate設定を維持したまま、GitHubの固定URL規則（`releases/latest`）に基づき記事側のリンクとリリース成果物を先行して確定。
-  - 公開判断時にはワンアクション（リポジトリのPublic化およびリリースのPublish）で即座に読者へ届く導線を確立した。
+- **安全な段階的公開とCIグリーン化**:
+  - リポジトリのPrivate設定を活用して事前準備（zip生成・下書き作成・URL確定）を行い、公開直前のCI検証で発覚したファイルパーミッション問題を解決した上で、クリーンな状態で一般公開（Public化 & Publish）を完了した。
+
 
 
 
