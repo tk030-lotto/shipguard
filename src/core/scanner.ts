@@ -97,7 +97,8 @@ function isTargetFile(relativePosixPath: string): boolean {
  */
 export async function collectFiles(
   rootDir: string,
-  customIgnore: string[] = []
+  customIgnore: string[] = [],
+  maxFileSizeBytes: number = 2 * 1024 * 1024
 ): Promise<FileEntry[]> {
   // 単一ファイルが指定された場合の安全なハンドリング
   try {
@@ -146,8 +147,12 @@ export async function collectFiles(
     const absolutePath = path.join(rootDir, relPath);
     try {
       const stats = await fs.stat(absolutePath);
-      // 2MB以上の巨大ファイルは除外（静的監査の対象外）
-      if (stats.size > 2 * 1024 * 1024) {
+      // 閾値超過の巨大ファイルは除外（静的監査の対象外）
+      if (stats.size > maxFileSizeBytes) {
+        const limitMB = (maxFileSizeBytes / (1024 * 1024)).toFixed(1);
+        console.warn(
+          `[shipguard] skip: ${relPath} (${(stats.size / 1024).toFixed(0)} KB > ${limitMB} MB limit)`
+        );
         continue;
       }
 
@@ -163,8 +168,10 @@ export async function collectFiles(
         content,
         extension: path.extname(relPath).toLowerCase(),
       });
-    } catch {
-      // 読み込みエラーはスキップ
+    } catch (error: unknown) {
+      // 権限エラー・破損ファイル等は警告を出してスキップ
+      const msg = error instanceof Error ? error.message : String(error);
+      console.warn(`[shipguard] skip: ${relPath} (read error: ${msg})`);
     }
   }
 

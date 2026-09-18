@@ -1,19 +1,20 @@
-import { execSync } from "node:child_process";
+import { exec } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { AuditLogRecord, ScanResult, ShipguardConfig } from "../types/index.js";
+
+const execAsync = promisify(exec);
 
 /**
  * Gitコミットハッシュを取得（取得できない場合はundefined）
  */
-export function getGitCommitHash(cwd: string = process.cwd()): string | undefined {
+export async function getGitCommitHash(cwd: string = process.cwd()): Promise<string | undefined> {
   try {
-    const hash = execSync("git rev-parse HEAD", {
+    const { stdout } = await execAsync("git rev-parse HEAD", {
       cwd,
-      stdio: ["ignore", "pipe", "ignore"],
-      encoding: "utf8",
-    }).trim();
-    return hash || undefined;
+    });
+    return stdout.trim() || undefined;
   } catch {
     return undefined;
   }
@@ -66,7 +67,7 @@ export async function appendAuditLog(
   const logAbsolutePath = path.resolve(rootDir, logRelativePath);
   const logDir = path.dirname(logAbsolutePath);
 
-  const gitHash = result.gitCommitHash ?? getGitCommitHash(rootDir);
+  const gitHash = result.gitCommitHash ?? (await getGitCommitHash(rootDir));
   const record = createAuditLogRecord(result, gitHash);
   const line = JSON.stringify(record) + "\n";
 

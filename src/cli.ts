@@ -39,11 +39,9 @@ program
 
         const result = await runScan(options);
 
-        // 終了コードの制御
-        if (!result.summary.passed) {
-          process.exit(1);
-        }
-        process.exit(0);
+        // process.exit() の代わりに exitCode を設定して自然終了させる
+        // （テスト時に process.exit() がプロセスを強制終了しないよう考慮）
+        process.exitCode = result.summary.passed ? 0 : 1;
       } catch (error) {
         console.error("エラーが発生しました:", error);
         process.exit(2);

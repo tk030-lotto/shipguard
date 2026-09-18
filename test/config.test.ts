@@ -43,4 +43,23 @@ describe("Config Schema & Loader", () => {
     const result = ShipguardConfigSchema.safeParse(invalid);
     expect(result.success).toBe(false);
   });
+  it("scan.maxFileSizeBytes デフォルト値が 2MB であること", () => {
+    const config = ShipguardConfigSchema.parse({});
+    expect(config.scan?.maxFileSizeBytes).toBe(2 * 1024 * 1024);
+  });
+
+  it("scan.maxFileSizeBytes をカスタム値に設定できること", () => {
+    const config = ShipguardConfigSchema.parse({
+      scan: { maxFileSizeBytes: 512 * 1024 },
+    });
+    expect(config.scan?.maxFileSizeBytes).toBe(512 * 1024);
+  });
+
+  it("scan.maxFileSizeBytes に 0 または負数を指定した場合は safeParse が失敗すること", () => {
+    const resultZero = ShipguardConfigSchema.safeParse({ scan: { maxFileSizeBytes: 0 } });
+    expect(resultZero.success).toBe(false);
+
+    const resultNeg = ShipguardConfigSchema.safeParse({ scan: { maxFileSizeBytes: -1 } });
+    expect(resultNeg.success).toBe(false);
+  });
 });

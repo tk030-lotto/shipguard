@@ -27,6 +27,10 @@ export async function loadConfig(rootDir: string): Promise<ShipguardConfig> {
           ...DEFAULT_CONFIG.logging,
           ...(parsed.data.logging || {}),
         },
+        scan: {
+          ...DEFAULT_CONFIG.scan,
+          ...(parsed.data.scan || {}),
+        },
       };
     }
     return DEFAULT_CONFIG;

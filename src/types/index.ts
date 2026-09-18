@@ -31,6 +31,10 @@ export interface ShipguardConfig {
     enabled?: boolean;
     path?: string;
   };
+  scan?: {
+    /** ファイルサイズ閾値（バイト）。この値を超えるファイルはスキップされる。デフォルト: 2MB */
+    maxFileSizeBytes?: number;
+  };
 }
 
 export interface ScanContext {

@@ -8,6 +8,11 @@ export const DatabaseConfigSchema = z.object({
   excludeTables: z.array(z.string()).optional().default([]),
 });
 
+export const ScanConfigSchema = z.object({
+  /** ファイルサイズ閾値（バイト）。この値を超えるファイルはスキップされる。デフォルト: 2MB */
+  maxFileSizeBytes: z.number().int().positive().optional().default(2 * 1024 * 1024),
+});
+
 export const LoggingConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
   path: z.string().optional().default(".shipguard/audit.log"),
@@ -30,6 +35,9 @@ export const ShipguardConfigSchema = z.object({
   logging: LoggingConfigSchema.optional().default({
     enabled: true,
     path: ".shipguard/audit.log",
+  }),
+  scan: ScanConfigSchema.optional().default({
+    maxFileSizeBytes: 2 * 1024 * 1024,
   }),
 });
 

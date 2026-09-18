@@ -19,8 +19,9 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
     ...(options.ignore || []),
   ];
 
-  // 1. ファイル収集
-  const files = await collectFiles(rootDir, customIgnore);
+  // 1. ファイル収集（設定のサイズ閾値を適用）
+  const maxFileSizeBytes = config.scan?.maxFileSizeBytes ?? 2 * 1024 * 1024;
+  const files = await collectFiles(rootDir, customIgnore, maxFileSizeBytes);
 
   // 2. ルール実行
   const violations: Violation[] = await executeRules({
@@ -60,7 +61,7 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
   const result: ScanResult = {
     id: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
-    gitCommitHash: getGitCommitHash(rootDir),
+    gitCommitHash: await getGitCommitHash(rootDir),
     summary: {
       scannedFiles: files.length,
       totalViolations: violations.length,

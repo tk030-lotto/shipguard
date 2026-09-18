@@ -29,4 +29,26 @@ describe("scanner: ファイル収集エンジン", () => {
     expect(filePaths).not.toContain("ignored.ts");
     expect(filePaths).not.toContain("image.png");
   });
+  it("maxFileSizeBytes 閾値を超えるファイルはスキップされること", async () => {
+    // 5バイトのファイルを作成し、閾値を4バイトに設定してスキップされるか確認
+    await fs.writeFile(path.join(tempDir, "small.ts"), "hello");
+    await fs.writeFile(path.join(tempDir, "large.ts"), "larger");
+
+    const files = await collectFiles(tempDir, [], 4);
+
+    const filePaths = files.map((f) => f.path.replace(/\\/g, "/"));
+    // "hello"(5バイト) > 4バイト閾値 → スキップ
+    // "larger"(6バイト) > 4バイト閾値 → スキップ
+    expect(filePaths).not.toContain("small.ts");
+    expect(filePaths).not.toContain("large.ts");
+  });
+
+  it("デフォルト閾値未満のファイルは収集されること", async () => {
+    await fs.writeFile(path.join(tempDir, "app.ts"), "console.log('ok');");
+
+    const files = await collectFiles(tempDir);
+
+    const filePaths = files.map((f) => f.path.replace(/\\/g, "/"));
+    expect(filePaths).toContain("app.ts");
+  });
 });
