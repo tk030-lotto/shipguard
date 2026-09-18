@@ -269,11 +269,16 @@
   - Description: `個人開発者のための事前ローンチ・セキュリティ＆設定監査CLI。ローカル完結・外部API費用0円で本番事故を未然に防止。`
   - Homepage: `https://github.com/tk030-lotto/shipguard#readme`
   - Topics: `security`, `audit`, `cli`, `pre-launch`, `indie-hacker`, `developer-tools`, `secrets-detection`, `supabase`, `rls`, `typescript`, `nodejs`, `devops` を設定完了。
+- **GitHub Actions CIワークフローの修正 (`.github/workflows/shipguard.yml`)**:
+  - `npm ci` の直後に `npm run build` ステップを追加。
+  - リポジトリ内での自己監査実行時に `dist/cli.js` が生成されておらず失敗（`ERR_MODULE_NOT_FOUND`）していた問題を解消。
+  - GitHub Actions が正常に **PASS（success）** することを確認。
 
 ### 2. 技術的決定・背景
 - **「下書き」状態の活用による安全な事前準備**:
   - リポジトリのPrivate設定を維持したまま、GitHubの固定URL規則（`releases/latest`）に基づき記事側のリンクとリリース成果物を先行して確定。
   - 公開判断時にはワンアクション（リポジトリのPublic化およびリリースのPublish）で即座に読者へ届く導線を確立した。
+
 
 
 
