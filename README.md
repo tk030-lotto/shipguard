@@ -1,7 +1,7 @@
-﻿# shipguard
+# shipguard
 
 > 個人開発者のための事前ローンチ・セキュリティ＆設定監査CLI。
-> サーバー不要・維持費0円・オフライン完結で、デプロイ直前の致命的な事故を防ぎます。
+> サーバー不要・外部費用0円・ローカル完結で、デプロイ直前の致命的な事故を防ぎます。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/badge/npm-v1.0.0-orange.svg)]()
@@ -15,15 +15,15 @@
 - Supabase の RLS を有効化し忘れて、テーブルが全開放されていないか？
 - 開発用の `CORS: *` がそのまま本番に残っていないか？
 
-`shipguard` はリポジトリを数秒で静的解析し、ローンチを妨げる設定不備やセキュリティホールを洗い出します。外部通信は一切行わず、維持コスト・保守コストはゼロです。
+`shipguard` はリポジトリを数秒で静的解析し、ローンチを妨げる設定不備やセキュリティホールを洗い出します。外部通信は一切行わず、サーバー運用費・外部サービス費用0円で動作します。
 
 ## 主な特徴
 
-- **完全スタンドアロン & 維持費0円**: APIサーバーや外部SaaSへの依存ゼロ。ローカルまたはCI上で高速実行。
-- **個人開発特化の監査ルール**:
+- **完全スタンドアロン & 運用費0円**: APIサーバーや外部SaaSへの依存ゼロ。アカウント登録不要、ローカルまたはCI上で高速実行。
+- **個人開発特化の多層監査ルール**:
   - ハードコードされたAPIキー（Stripe, OpenAI, Resend, AWS 等）の漏洩検知
   - クライアント環境変数（`NEXT_PUBLIC_`, `VITE_`）への秘密鍵混入検知
-  - Supabase / PostgreSQL の Row Level Security (RLS) 未設定テーブル検知
+  - Supabase / PostgreSQL の Row Level Security (RLS) 未設定テーブル検知（複数マイグレーション解析・除外テーブル対応）
   - 認証ルートでのワイルドカード CORS 放置検知
 - **実行ログの永続化**: すべての監査結果は `.shipguard/audit.log` に自動記録され、デプロイ履歴や過去の修正状況を追跡可能。
 - **CI/CD Friendly**: GitHub Actions 等に組み込み、重大な違反がある場合は Exit Code 1 でデプロイを即座にブロック。
@@ -66,7 +66,7 @@ npx shipguard scan --ignore "test/**" # 特定パスを除外
 
 ## 設定ファイル (`.shipguardrc.json`)
 
-プロジェクト固有の要件に合わせてルールをカスタマイズできます。
+プロジェクト固有の要件に合わせてルールや除外設定をカスタマイズできます。
 
 ```json
 {
@@ -81,6 +81,10 @@ npx shipguard scan --ignore "test/**" # 特定パスを除外
     "SEC-003": "high",
     "SEC-004": "medium",
     "CFG-001": "low"
+  },
+  "database": {
+    "migrationsDir": "supabase/migrations",
+    "excludeTables": ["audit_events", "spatial_ref_sys"]
   },
   "logging": {
     "enabled": true,
