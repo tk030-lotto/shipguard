@@ -71,3 +71,39 @@
 - **タイトル案**:
   - 「TypeScript + tsup + vitest で作る、依存最小のセキュリティ監査CLI開発記（Phase 1: コアエンジンの確立）」
 
+---
+
+## 2026-09-18: Phase 2 監査ルール拡充および設定連携の実装完了
+
+### 1. 変更・実装内容
+- **設定スキーマ定義とZodバリデーション (`src/config/schema.ts`, `src/config/loader.ts`)**:
+  - `zod` による `.shipguardrc.json` の型定義とバリデーション。
+  - ルール個別重要度のオーバーライド（`critical`, `high`, `medium`, `low`, `off`）および安全なフォールバック。
+- **環境変数監査ルール (`src/rules/env.ts`)**:
+  - `SEC-002`: `NEXT_PUBLIC_` や `VITE_` 等の公開プレフィックスが付与された機密情報（`SECRET`, `SERVICE_ROLE` 等）の誤用検知。
+  - 公開前提のキー（`ANON`, `PUBLISHABLE`, `PUBLIC_KEY`）をホワイトリスト化して誤検知を排除。
+  - `CFG-001`: `.env.example` の定義キーがローカルの `.env` / `.env.local` に未定義である状態を検知。
+- **データベース RLS 監査ルール (`src/rules/database.ts`)**:
+  - `SEC-003`: プロジェクト内の全マイグレーションSQLファイルを横断解析し、`CREATE TABLE` されたテーブル名に対して `ENABLE ROW LEVEL SECURITY` が一度も適用されていないテーブルを検知。
+  - `.shipguardrc.json` の `database.excludeTables` に指定されたテーブルの除外処理に対応。
+- **CORS設定監査ルール (`src/rules/cors.ts`)**:
+  - `SEC-004`: `Access-Control-Allow-Origin: *` や `cors({ origin: "*" })` などの過度に寛容なCORS設定を検知。
+- **ルールエンジン統合とテスト拡充 (`src/rules/index.ts`, `test/`)**:
+  - 全5ルールを統合実行し、全8テストファイル・25テストケース全件合格（単体テスト＋E2E統合テスト）。
+  - `tsc --noEmit` および `tsup` ビルドの正常終了を確認。
+  - 全TypeScriptコードで300行以内を維持（最大177行）。
+
+### 2. 技術的決定・背景
+- **Supabase/PostgreSQLにおける実用的なRLS判定**:
+  - 単一ファイル内の正規表現では「テーブル作成SQL」と「後から別マイグレーションでRLS有効化SQLを追加するケース」を誤検知してしまうため、プロジェクト内の全SQLファイルを収集して集合突合（Set diff）を行うアルゴリズムを採用。
+- **公開用トークンのホワイトリスト除外**:
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` や `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` はフロントエンドで必須のキーであるため、単に `KEY` を含むからと警告を出さず、安全な公開用プレフィックス・サフィックスを認識してノイズを防止。
+
+### 3. 📝 記事ネタ・発信知見
+- **提供価値**:
+  - 「Supabaseを使っている個人開発者が本番公開前に最も青ざめる『RLS未設定』事故を、0円・ローカル完結で確実に防ぐ仕組み」
+- **技術的知見・ブレイクスルー**:
+  - 「なぜ単一ファイル正規表現のセキュリティ検知は破綻するのか：マイグレーション横断突合とノイズゼロ化の技術」
+  - 「Stripe / Supabase / Clerk のキーを誤認させないためのコンテキスト認識型静的解析手法」
+
+
