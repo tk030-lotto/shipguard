@@ -1,8 +1,17 @@
 import type { Rule, ScanContext, Violation } from "../types/index.js";
+import { corsRule } from "./cors.js";
+import { databaseRlsRule } from "./database.js";
+import { clientEnvSecretsRule, envSyncRule } from "./env.js";
 import { secretsRule } from "./secrets.js";
 
-// 現在有効なルール一覧（Phase 1 は SEC-001）
-export const ALL_RULES: Rule[] = [secretsRule];
+// 全監査ルール一覧
+export const ALL_RULES: Rule[] = [
+  secretsRule,
+  clientEnvSecretsRule,
+  databaseRlsRule,
+  corsRule,
+  envSyncRule,
+];
 
 /**
  * 登録されたすべてのルールを実行し、設定に応じたSeverityを適用して結果を返す
