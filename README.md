@@ -60,11 +60,23 @@ npx shipguard scan
 
 ```bash
 npx shipguard scan --strict               # WARNING/LOWでも終了コード1を返す
+npx shipguard scan --open                 # スキャン後にブラウザでHTMLレポートを開く
+npx shipguard scan --format html -o report.html # スタンドアロンHTMLレポートを出力
 npx shipguard scan --format markdown      # Markdown形式で標準出力
-npx shipguard scan -o audit-report.md     # ファイルにレポートを保存
+npx shipguard scan -o audit-report.md     # Markdownファイルにレポートを保存
 npx shipguard scan --format json          # 機械可読なJSON形式で出力
 npx shipguard scan --ignore "test/**"     # 特定パスを除外
 ```
+
+### 3. ローカルWeb UIダッシュボードの起動
+
+ターミナルだけでなく、ブラウザから視覚的に監査結果と実行履歴を確認・再実行できます（外部通信なし・0円ローカル完結）。
+
+```bash
+npx shipguard ui
+```
+
+ブラウザで `http://localhost:3773` が自動で開き、最新の脆弱性詳細や過去の監査タイムラインの閲覧、ワンクリックでの再スキャンが可能です。
 
 ## 設定ファイル (`.shipguardrc.json`)
 

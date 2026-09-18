@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { runHistory } from "./commands/history.js";
 import { runInit } from "./commands/init.js";
 import { runScan } from "./commands/scan.js";
+import { startUiServer } from "./commands/ui.js";
 import type { ScanOptions } from "./types/index.js";
 
 const program = new Command();
@@ -15,14 +16,16 @@ program
   .command("scan", { isDefault: true })
   .description("プロジェクトを走査し、セキュリティ・設定不備を監査します")
   .option("-s, --strict", "WARNING/LOWレベルを含むすべての違反で終了コード1を返します")
-  .option("-f, --format <format>", "出力形式を指定します (terminal, markdown, json)", "terminal")
+  .option("-f, --format <format>", "出力形式を指定します (terminal, markdown, json, html)", "terminal")
   .option("-o, --output <path>", "レポート出力先ファイルパスを指定します")
+  .option("--open", "スキャン完了後にレポートをブラウザで開きます")
   .option("-i, --ignore <patterns...>", "監査対象外とするGlobパターンを指定します")
   .action(
     async (cmdOptions: {
       strict?: boolean;
-      format?: "terminal" | "markdown" | "json";
+      format?: "terminal" | "markdown" | "json" | "html";
       output?: string;
+      open?: boolean;
       ignore?: string[];
     }) => {
       try {
@@ -30,6 +33,7 @@ program
           strict: Boolean(cmdOptions.strict),
           format: cmdOptions.format,
           output: cmdOptions.output,
+          open: cmdOptions.open,
           ignore: cmdOptions.ignore,
         };
 
@@ -46,6 +50,20 @@ program
       }
     }
   );
+
+program
+  .command("ui")
+  .description("ローカルWeb UIダッシュボードを起動します")
+  .option("-p, --port <number>", "サーバーのポート番号", (v) => parseInt(v, 10), 3773)
+  .option("--no-open", "起動時にブラウザを自動で開かない")
+  .action(async (options: { port?: number; open?: boolean }) => {
+    try {
+      await startUiServer({ port: options.port, open: options.open });
+    } catch (error) {
+      console.error("UIサーバーの起動に失敗しました:", error);
+      process.exit(2);
+    }
+  });
 
 program
   .command("init")

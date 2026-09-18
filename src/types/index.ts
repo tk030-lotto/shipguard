@@ -89,8 +89,9 @@ export interface AuditLogRecord {
 
 export interface ScanOptions {
   strict?: boolean;
-  format?: "terminal" | "markdown" | "json";
+  format?: "terminal" | "markdown" | "json" | "html";
   output?: string;
+  open?: boolean;
   ignore?: string[];
   cwd?: string;
 }
