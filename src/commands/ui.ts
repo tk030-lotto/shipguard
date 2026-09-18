@@ -4,6 +4,7 @@ import pc from "picocolors";
 import { loadConfig } from "../config/loader.js";
 import { readAuditLogs } from "../logger/index.js";
 import type { AuditLogRecord, ScanResult } from "../types/index.js";
+import { selectFileDialog, selectFolderDialog } from "../utils/dialog.js";
 import { openInBrowser } from "../utils/open.js";
 import { runScan } from "./scan.js";
 import { getDashboardHtml } from "./ui-html.js";
@@ -98,6 +99,32 @@ export async function startUiServer(
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ success: false, error: err?.message || String(err) }));
+      }
+      return;
+    }
+
+    // 4. フォルダ選択ダイアログ API
+    if (req.method === "POST" && pathname === "/api/browse-folder") {
+      try {
+        const selected = await selectFolderDialog();
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ path: selected }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ path: null, error: err?.message }));
+      }
+      return;
+    }
+
+    // 5. ファイル選択ダイアログ API
+    if (req.method === "POST" && pathname === "/api/browse-file") {
+      try {
+        const selected = await selectFileDialog();
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ path: selected }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ path: null, error: err?.message }));
       }
       return;
     }

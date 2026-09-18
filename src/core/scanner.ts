@@ -99,6 +99,25 @@ export async function collectFiles(
   rootDir: string,
   customIgnore: string[] = []
 ): Promise<FileEntry[]> {
+  // 単一ファイルが指定された場合の安全なハンドリング
+  try {
+    const stat = await fs.stat(rootDir);
+    if (stat.isFile()) {
+      const content = await fs.readFile(rootDir, "utf-8");
+      const ext = path.extname(rootDir);
+      return [
+        {
+          path: path.basename(rootDir),
+          absolutePath: path.resolve(rootDir),
+          content,
+          extension: ext,
+        },
+      ];
+    }
+  } catch {
+    return [];
+  }
+
   const ig = await loadGitignore(rootDir);
   if (customIgnore.length > 0) {
     ig.add(customIgnore);

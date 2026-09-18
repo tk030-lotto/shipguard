@@ -63,58 +63,61 @@ export function formatHtmlReport(result: ScanResult): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>shipguard Audit Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0b0f19;
-      --card-bg: rgba(18, 24, 38, 0.85);
-      --border: rgba(255, 255, 255, 0.08);
-      --text: #e2e8f0;
-      --text-muted: #94a3b8;
-      --accent: #06b6d4;
+      --bg: #09090b;
+      --card-bg: #121215;
+      --card-hover: #18181b;
+      --border: #27272a;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --accent: #38bdf8;
       --critical: #ef4444;
       --high: #f97316;
-      --medium: #f59e0b;
+      --medium: #eab308;
       --low: #3b82f6;
       --pass: #10b981;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1.5rem; }
     .container { max-width: 1000px; margin: 0 auto; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
     .brand { display: flex; align-items: center; gap: 0.75rem; }
     .brand-icon { font-size: 1.75rem; }
-    .brand h1 { font-size: 1.5rem; font-weight: 700; color: #fff; letter-spacing: -0.025em; }
-    .brand p { font-size: 0.875rem; color: var(--text-muted); }
-    .status-badge { padding: 0.5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: 0.875rem; letter-spacing: 0.05em; }
+    .brand h1 { font-size: 1.4rem; font-weight: 700; color: #fafafa; letter-spacing: -0.02em; }
+    .brand p { font-size: 0.8rem; color: var(--text-muted); }
+    .status-badge { padding: 0.35rem 0.8rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; }
     .status-pass { background: rgba(16, 185, 129, 0.15); color: var(--pass); border: 1px solid var(--pass); }
     .status-fail { background: rgba(239, 68, 68, 0.15); color: var(--critical); border: 1px solid var(--critical); }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; backdrop-filter: blur(8px); }
-    .stat-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.5rem; }
-    .stat-value { font-size: 1.75rem; font-weight: 700; color: #fff; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.75rem; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .stat-title { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.4rem; letter-spacing: 0.05em; }
+    .stat-value { font-size: 1.6rem; font-weight: 700; color: #fafafa; font-family: 'JetBrains Mono', monospace; }
     .stat-critical { color: var(--critical); }
     .stat-high { color: var(--high); }
     .stat-medium { color: var(--medium); }
     .stat-low { color: var(--low); }
-    .controls { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-    .filter-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.875rem; cursor: pointer; transition: all 0.2s; }
-    .filter-btn.active, .filter-btn:hover { background: rgba(6, 182, 212, 0.15); color: var(--accent); border-color: var(--accent); }
-    .violations-list { display: flex; flex-direction: column; gap: 1rem; }
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; backdrop-filter: blur(8px); transition: transform 0.2s; }
-    .card:hover { transform: translateY(-2px); }
-    .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 6px; letter-spacing: 0.05em; }
-    .badge-critical { background: var(--critical); color: #fff; }
-    .badge-high { background: var(--high); color: #fff; }
-    .badge-medium { background: var(--medium); color: #000; }
-    .badge-low { background: var(--low); color: #fff; }
-    .rule-id { font-weight: 700; font-size: 0.95rem; color: #fff; }
-    .rule-name { color: var(--text-muted); font-size: 0.875rem; }
-    .loc-text { font-family: monospace; font-size: 0.85rem; color: var(--accent); margin-bottom: 0.5rem; }
-    .msg-text { font-size: 0.9rem; color: var(--text); line-height: 1.5; margin-bottom: 0.75rem; }
-    .code-box { background: #070a11; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.75rem 1rem; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; color: #f87171; overflow-x: auto; }
-    .no-violations { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 3rem; text-align: center; color: var(--pass); font-size: 1.1rem; font-weight: 600; }
-    footer { text-align: center; margin-top: 3rem; color: var(--text-muted); font-size: 0.8rem; }
+    .controls { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .filter-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+    .filter-btn.active, .filter-btn:hover { background: #18181b; color: var(--text); border-color: #3f3f46; }
+    .violations-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.15rem; }
+    .card-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+    .badge { font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+    .badge-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+    .badge-high { background: rgba(249, 115, 22, 0.2); color: var(--high); border: 1px solid var(--high); }
+    .badge-medium { background: rgba(234, 179, 8, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+    .badge-low { background: rgba(59, 130, 246, 0.2); color: var(--low); border: 1px solid var(--low); }
+    .rule-id { font-weight: 700; font-size: 0.9rem; color: #fafafa; font-family: 'JetBrains Mono', monospace; }
+    .rule-name { color: var(--text-muted); font-size: 0.85rem; }
+    .loc-text { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent); margin-bottom: 0.4rem; }
+    .msg-text { font-size: 0.875rem; color: var(--text); line-height: 1.5; margin-bottom: 0.5rem; }
+    .code-box { background: #09090b; border: 1px solid var(--border); border-radius: 6px; padding: 0.7rem 0.9rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #f87171; overflow-x: auto; }
+    .no-violations { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 3rem; text-align: center; color: var(--pass); font-size: 1rem; font-weight: 600; }
+    footer { text-align: center; margin-top: 2.5rem; color: var(--text-muted); font-size: 0.8rem; }
     footer a { color: var(--accent); text-decoration: none; }
   </style>
 </head>

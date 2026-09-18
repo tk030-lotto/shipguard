@@ -2,8 +2,13 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startUiServer } from "../src/commands/ui.js";
+
+vi.mock("../src/utils/dialog.js", () => ({
+  selectFolderDialog: vi.fn().mockResolvedValue("C:\\Mock\\Project"),
+  selectFileDialog: vi.fn().mockResolvedValue("C:\\Mock\\Project\\index.ts"),
+}));
 
 describe("UI Server", () => {
   let tmpDir: string;
@@ -107,6 +112,16 @@ describe("UI Server", () => {
     expect(scanRes.status).toBe(200);
     expect(scanRes.json.success).toBe(true);
     expect(scanRes.json.result).toBeDefined();
+
+    // POST /api/browse-folder
+    const folderRes = await httpPost(`${url}/api/browse-folder`);
+    expect(folderRes.status).toBe(200);
+    expect(folderRes.json.path).toBe("C:\\Mock\\Project");
+
+    // POST /api/browse-file
+    const fileRes = await httpPost(`${url}/api/browse-file`);
+    expect(fileRes.status).toBe(200);
+    expect(fileRes.json.path).toBe("C:\\Mock\\Project\\index.ts");
   });
 
   it("supports scanning a dynamic target directory specified in POST /api/scan", async () => {

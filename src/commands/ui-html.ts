@@ -9,6 +9,7 @@ function escapeHtml(str: string): string {
 
 /**
  * shipguard ローカルWeb UI ダッシュボードのHTMLテンプレート
+ * （プロジェクト統計ツール準拠デザインシステム: #09090b 背景, #121215 カード, #27272a ボーダー）
  */
 export function getDashboardHtml(initialTargetDir: string = ""): string {
   const escapedDir = escapeHtml(initialTargetDir);
@@ -19,60 +20,68 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>shipguard Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0b0f19;
-      --card-bg: rgba(18, 24, 38, 0.85);
-      --border: rgba(255, 255, 255, 0.08);
-      --text: #e2e8f0;
-      --text-muted: #94a3b8;
-      --accent: #06b6d4;
+      --bg: #09090b;
+      --card-bg: #121215;
+      --card-hover: #18181b;
+      --border: #27272a;
+      --border-focus: #3f3f46;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
       --critical: #ef4444;
       --high: #f97316;
-      --medium: #f59e0b;
+      --medium: #eab308;
       --low: #3b82f6;
       --pass: #10b981;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1.5rem; }
     .container { max-width: 1100px; margin: 0 auto; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.75rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
     .brand { display: flex; align-items: center; gap: 0.75rem; }
-    .brand-icon { font-size: 2rem; }
-    .brand h1 { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: -0.025em; }
-    .brand p { font-size: 0.85rem; color: var(--text-muted); }
-    .dir-bar { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
-    .dir-icon { font-size: 1.25rem; }
-    .dir-input { flex: 1; background: #070a11; border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+    .brand-icon { font-size: 1.75rem; }
+    .brand h1 { font-size: 1.4rem; font-weight: 700; color: #fafafa; letter-spacing: -0.02em; }
+    .brand p { font-size: 0.8rem; color: var(--text-muted); }
+    .target-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1.15rem; margin-bottom: 1.75rem; }
+    .target-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .dir-input { flex: 1; min-width: 260px; background: #09090b; border: 1px solid var(--border); color: var(--text); padding: 0.55rem 0.9rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; transition: border-color 0.2s; }
     .dir-input:focus { border-color: var(--accent); }
-    .btn { background: var(--accent); color: #000; font-weight: 700; font-size: 0.875rem; padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; white-space: nowrap; }
-    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn { background: #27272a; color: var(--text); font-weight: 600; font-size: 0.825rem; padding: 0.55rem 1rem; border-radius: 6px; border: 1px solid #3f3f46; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.15s; white-space: nowrap; }
+    .btn:hover { background: #3f3f46; color: #fff; }
+    .btn-primary { background: var(--accent); color: #09090b; border: 1px solid var(--accent); font-weight: 700; }
+    .btn-primary:hover { background: var(--accent-hover); color: #09090b; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .nav-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
-    .tab-btn { background: none; border: none; color: var(--text-muted); padding: 0.75rem 1.25rem; font-size: 0.95rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-    .stat-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.5rem; }
-    .stat-value { font-size: 1.8rem; font-weight: 700; color: #fff; }
-    .controls { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-    .filter-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.85rem; cursor: pointer; }
-    .filter-btn.active, .filter-btn:hover { background: rgba(6, 182, 212, 0.15); color: var(--accent); border-color: var(--accent); }
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-    .badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 6px; }
-    .badge-critical { background: var(--critical); color: #fff; }
-    .badge-high { background: var(--high); color: #fff; }
-    .badge-medium { background: var(--medium); color: #000; }
-    .badge-low { background: var(--low); color: #fff; }
-    .loc-text { font-family: monospace; font-size: 0.85rem; color: var(--accent); margin: 0.5rem 0; }
-    .code-box { background: #070a11; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.75rem 1rem; font-family: monospace; font-size: 0.85rem; color: #f87171; overflow-x: auto; margin-top: 0.5rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; }
-    .status-badge { padding: 0.25rem 0.6rem; border-radius: 9999px; font-weight: 700; font-size: 0.75rem; }
+    .nav-tabs { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    .tab-btn { background: none; border: none; color: var(--text-muted); padding: 0.65rem 1.1rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .stat-title { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 0.4rem; letter-spacing: 0.05em; }
+    .stat-value { font-size: 1.6rem; font-weight: 700; color: #fafafa; font-family: 'JetBrains Mono', monospace; }
+    .controls { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .filter-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 500; }
+    .filter-btn.active, .filter-btn:hover { background: #18181b; color: var(--text); border-color: var(--border-focus); }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.15rem; margin-bottom: 0.85rem; }
+    .badge { font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+    .badge-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+    .badge-high { background: rgba(249, 115, 22, 0.2); color: var(--high); border: 1px solid var(--high); }
+    .badge-medium { background: rgba(234, 179, 8, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+    .badge-low { background: rgba(59, 130, 246, 0.2); color: var(--low); border: 1px solid var(--low); }
+    .loc-text { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent); margin: 0.4rem 0; }
+    .code-box { background: #09090b; border: 1px solid var(--border); border-radius: 6px; padding: 0.7rem 0.9rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #f87171; overflow-x: auto; margin-top: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; }
+    th { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; font-weight: 600; }
+    .status-badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.7rem; }
     .status-pass { background: rgba(16, 185, 129, 0.15); color: var(--pass); border: 1px solid var(--pass); }
     .status-fail { background: rgba(239, 68, 68, 0.15); color: var(--critical); border: 1px solid var(--critical); }
-    .loading-spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #000; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .loading-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid #09090b; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
@@ -83,15 +92,18 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
         <div class="brand-icon">🛡️</div>
         <div>
           <h1>shipguard UI</h1>
-          <p>Local Security &amp; Config Audit Dashboard</p>
+          <p>Local Pre-Launch Security &amp; Config Audit Dashboard</p>
         </div>
       </div>
     </header>
 
-    <div class="dir-bar">
-      <span class="dir-icon">📁</span>
-      <input type="text" id="targetDirInput" class="dir-input" value="${escapedDir}" placeholder="対象プロジェクトのパスを入力..." onkeydown="if(event.key==='Enter') triggerScan()" />
-      <button id="scanBtn" class="btn" onclick="triggerScan()">⚡ スキャン実行</button>
+    <div class="target-box">
+      <div class="target-row">
+        <input type="text" id="targetDirInput" class="dir-input" value="${escapedDir}" placeholder="対象のフォルダまたはファイルパス..." onkeydown="if(event.key==='Enter') triggerScan()" />
+        <button class="btn" onclick="browseFolder()">📁 フォルダ選択</button>
+        <button class="btn" onclick="browseFile()">📄 ファイル選択</button>
+        <button id="scanBtn" class="btn btn-primary" onclick="triggerScan()">⚡ スキャン実行</button>
+      </div>
     </div>
 
     <div class="nav-tabs">
@@ -130,6 +142,24 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
   <script>
     let currentData = null;
 
+    async function browseFolder() {
+      const res = await fetch('/api/browse-folder', { method: 'POST' });
+      const data = await res.json();
+      if (data.path) {
+        document.getElementById('targetDirInput').value = data.path;
+        triggerScan();
+      }
+    }
+
+    async function browseFile() {
+      const res = await fetch('/api/browse-file', { method: 'POST' });
+      const data = await res.json();
+      if (data.path) {
+        document.getElementById('targetDirInput').value = data.path;
+        triggerScan();
+      }
+    }
+
     async function loadData(targetDir) {
       const url = targetDir ? '/api/status?targetDir=' + encodeURIComponent(targetDir) : '/api/status';
       const res = await fetch(url);
@@ -162,17 +192,17 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
 
       const list = document.getElementById('violationsList');
       if (!current || current.violations.length === 0) {
-        list.innerHTML = '<div class="card" style="text-align:center; padding:3rem; color:var(--pass); font-weight:700;">🎉 違反は検知されませんでした。デプロイ準備完了です。</div>';
+        list.innerHTML = '<div class="card" style="text-align:center; padding:3rem; color:var(--pass); font-weight:600;">🎉 違反は検知されませんでした。デプロイ準備完了です。</div>';
       } else {
         list.innerHTML = current.violations.map(v => \`
           <div class="card v-card" data-severity="\${v.severity}">
-            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.4rem;">
               <span class="badge badge-\${v.severity}">\${v.severity.toUpperCase()}</span>
               <strong>\${v.ruleId}</strong>
-              <span style="color:var(--text-muted)">\${v.ruleName}</span>
+              <span style="color:var(--text-muted); font-size:0.85rem;">\${v.ruleName}</span>
             </div>
             <div class="loc-text">📁 \${v.filePath}:\${v.line}\${v.column ? ':' + v.column : ''}</div>
-            <div style="font-size:0.9rem; margin-bottom:0.5rem;">\${v.message}</div>
+            <div style="font-size:0.875rem; margin-bottom:0.4rem;">\${v.message}</div>
             \${v.snippet ? \`<div class="code-box"><code>\${v.snippet}</code></div>\` : ''}
           </div>
         \`).join('');
@@ -217,7 +247,7 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
       const btn = document.getElementById('scanBtn');
       const targetDir = document.getElementById('targetDirInput').value.trim();
       btn.disabled = true;
-      btn.innerHTML = '<span class="loading-spin"></span> スキャン中...';
+      btn.innerHTML = '<span class="loading-spin"></span>';
       try {
         const res = await fetch('/api/scan', {
           method: 'POST',
