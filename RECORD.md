@@ -265,12 +265,16 @@
   - GitHub CLI（`gh release create`）により、一般非公開の「下書き（Draft）」としてリリースを作成し、`shipguard-v0.1.0.zip` アセットを添付完了。
 - **note記事への配布リンク・ハッシュタグ追記**:
   - `個人開発】本番公開するのがちょっと怖い。その不安を減らすために「shipguard」を作った.txt` の冒頭および末尾に、GitHub Releases の最新リリースページおよび直接ダウンロードURLを追記。
-  - 末尾に関連ハッシュタグ（`#個人開発`, `#セキュリティ`, `#Web開発` 等）を配置。
+- **リポジトリAbout欄（概要・Homepage・Topics）の設定**:
+  - Description: `個人開発者のための事前ローンチ・セキュリティ＆設定監査CLI。完全ローカル完結・外部API費用0円で本番事故を未然に防止。`
+  - Homepage: `https://github.com/tk030-lotto/shipguard#readme`
+  - Topics: `security`, `audit`, `cli`, `pre-launch`, `indie-hacker`, `developer-tools`, `secrets-detection`, `supabase`, `rls`, `typescript`, `nodejs`, `devops` を設定完了。
 
 ### 2. 技術的決定・背景
 - **「下書き」状態の活用による安全な事前準備**:
   - リポジトリのPrivate設定を維持したまま、GitHubの固定URL規則（`releases/latest`）に基づき記事側のリンクとリリース成果物を先行して確定。
   - 公開判断時にはワンアクション（リポジトリのPublic化およびリリースのPublish）で即座に読者へ届く導線を確立した。
+
 
 
 
