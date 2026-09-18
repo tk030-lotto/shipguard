@@ -15,41 +15,63 @@ export interface UiOptions {
 }
 
 /**
+ * リクエストボディをJSONとしてパースするヘルパー
+ */
+function readJsonBody(req: http.IncomingMessage): Promise<any> {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
+
+/**
  * ローカルWeb UIサーバーを起動する
  */
 export async function startUiServer(
   options: UiOptions = {}
 ): Promise<{ server: http.Server; port: number; url: string }> {
-  const rootDir = options.cwd ?? process.cwd();
-  const config = await loadConfig(rootDir);
-  const logRelativePath = config.logging?.path || ".shipguard/audit.log";
-  const logFilePath = path.resolve(rootDir, logRelativePath);
-
+  const defaultRootDir = path.resolve(options.cwd ?? process.cwd());
+  let currentTargetDir = defaultRootDir;
   let latestResult: ScanResult | null = null;
 
   // 初回スキャンを実行して最新状態を準備
   try {
-    latestResult = await runScan({ cwd: rootDir, format: "terminal" });
+    latestResult = await runScan({ cwd: defaultRootDir, format: "terminal" });
   } catch (error) {
     console.warn(pc.yellow(`  [UI] 初回スキャンの取得に失敗しました: ${error}`));
   }
 
   const server = http.createServer(async (req, res) => {
-    const url = req.url || "/";
+    const parsedUrl = new URL(req.url || "/", "http://localhost");
+    const pathname = parsedUrl.pathname;
 
     // 1. ダッシュボード画面 HTML
-    if (req.method === "GET" && (url === "/" || url === "/index.html")) {
+    if (req.method === "GET" && (pathname === "/" || pathname === "/index.html")) {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(getDashboardHtml());
+      res.end(getDashboardHtml(currentTargetDir));
       return;
     }
 
     // 2. ステータス・履歴取得 API
-    if (req.method === "GET" && url === "/api/status") {
+    if (req.method === "GET" && pathname === "/api/status") {
+      const queryDir = parsedUrl.searchParams.get("targetDir");
+      const targetDir = queryDir ? path.resolve(queryDir) : currentTargetDir;
+      const config = await loadConfig(targetDir);
+      const logRelativePath = config.logging?.path || ".shipguard/audit.log";
+      const logFilePath = path.resolve(targetDir, logRelativePath);
       const history: AuditLogRecord[] = await readAuditLogs(logFilePath);
+
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       res.end(
         JSON.stringify({
+          targetDir,
           current: latestResult,
           history,
         })
@@ -57,12 +79,22 @@ export async function startUiServer(
       return;
     }
 
-    // 3. 再スキャン実行 API
-    if (req.method === "POST" && url === "/api/scan") {
+    // 3. 再スキャン実行 API (任意のディレクトリ指定に対応)
+    if (req.method === "POST" && pathname === "/api/scan") {
       try {
-        latestResult = await runScan({ cwd: rootDir, format: "terminal" });
+        const body = await readJsonBody(req);
+        const targetDir = body.targetDir ? path.resolve(body.targetDir) : currentTargetDir;
+        currentTargetDir = targetDir;
+
+        latestResult = await runScan({ cwd: targetDir, format: "terminal" });
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ success: true, result: latestResult }));
+        res.end(
+          JSON.stringify({
+            success: true,
+            targetDir,
+            result: latestResult,
+          })
+        );
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ success: false, error: err?.message || String(err) }));

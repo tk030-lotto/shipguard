@@ -1,7 +1,18 @@
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 /**
  * shipguard ローカルWeb UI ダッシュボードのHTMLテンプレート
  */
-export function getDashboardHtml(): string {
+export function getDashboardHtml(initialTargetDir: string = ""): string {
+  const escapedDir = escapeHtml(initialTargetDir);
+
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -25,13 +36,16 @@ export function getDashboardHtml(): string {
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1.5rem; }
     .container { max-width: 1100px; margin: 0 auto; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
     .brand { display: flex; align-items: center; gap: 0.75rem; }
     .brand-icon { font-size: 2rem; }
     .brand h1 { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: -0.025em; }
     .brand p { font-size: 0.85rem; color: var(--text-muted); }
-    .actions { display: flex; gap: 1rem; align-items: center; }
-    .btn { background: var(--accent); color: #000; font-weight: 700; font-size: 0.875rem; padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; }
+    .dir-bar { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .dir-icon { font-size: 1.25rem; }
+    .dir-input { flex: 1; background: #070a11; border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-family: monospace; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+    .dir-input:focus { border-color: var(--accent); }
+    .btn { background: var(--accent); color: #000; font-weight: 700; font-size: 0.875rem; padding: 0.6rem 1.25rem; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s; white-space: nowrap; }
     .btn:hover { opacity: 0.9; transform: translateY(-1px); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .nav-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
@@ -72,13 +86,16 @@ export function getDashboardHtml(): string {
           <p>Local Security &amp; Config Audit Dashboard</p>
         </div>
       </div>
-      <div class="actions">
-        <button id="scanBtn" class="btn" onclick="triggerScan()">⚡ 再スキャン実行</button>
-      </div>
     </header>
 
+    <div class="dir-bar">
+      <span class="dir-icon">📁</span>
+      <input type="text" id="targetDirInput" class="dir-input" value="${escapedDir}" placeholder="対象プロジェクトのパスを入力..." onkeydown="if(event.key==='Enter') triggerScan()" />
+      <button id="scanBtn" class="btn" onclick="triggerScan()">⚡ スキャン実行</button>
+    </div>
+
     <div class="nav-tabs">
-      <button class="tab-btn active" onclick="switchTab('violations', this)">🔍 最新の監査結果</button>
+      <button class="tab-btn active" onclick="switchTab('violations', this)">🔍 監査結果</button>
       <button class="tab-btn" onclick="switchTab('history', this)">📜 監査履歴タイムライン</button>
     </div>
 
@@ -113,15 +130,18 @@ export function getDashboardHtml(): string {
   <script>
     let currentData = null;
 
-    async function loadData() {
-      const res = await fetch('/api/status');
+    async function loadData(targetDir) {
+      const url = targetDir ? '/api/status?targetDir=' + encodeURIComponent(targetDir) : '/api/status';
+      const res = await fetch(url);
       currentData = await res.json();
+      if (currentData.targetDir && !document.getElementById('targetDirInput').value) {
+        document.getElementById('targetDirInput').value = currentData.targetDir;
+      }
       renderDashboard(currentData);
     }
 
     function renderDashboard(data) {
       const { current, history } = data;
-      // Stats
       const s = current ? current.summary : { scannedFiles: 0, totalViolations: 0, critical: 0, high: 0, medium: 0, low: 0, passed: true };
       document.getElementById('statsGrid').innerHTML = \`
         <div class="stat-card"><div class="stat-title">Files Scanned</div><div class="stat-value">\${s.scannedFiles}</div></div>
@@ -132,7 +152,6 @@ export function getDashboardHtml(): string {
         <div class="stat-card"><div class="stat-title">Low</div><div class="stat-value" style="color:var(--low)">\${s.low}</div></div>
       \`;
 
-      // Controls & Violations
       document.getElementById('controls').innerHTML = \`
         <button class="filter-btn active" onclick="filterV('all', this)">All (\${s.totalViolations})</button>
         <button class="filter-btn" onclick="filterV('critical', this)">Critical (\${s.critical})</button>
@@ -159,7 +178,6 @@ export function getDashboardHtml(): string {
         \`).join('');
       }
 
-      // History
       const tbody = document.getElementById('historyTbody');
       if (!history || history.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted)">履歴はありません</td></tr>';
@@ -197,16 +215,25 @@ export function getDashboardHtml(): string {
 
     async function triggerScan() {
       const btn = document.getElementById('scanBtn');
+      const targetDir = document.getElementById('targetDirInput').value.trim();
       btn.disabled = true;
       btn.innerHTML = '<span class="loading-spin"></span> スキャン中...';
       try {
-        const res = await fetch('/api/scan', { method: 'POST' });
-        await loadData();
+        const res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetDir })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'スキャンに失敗しました');
+        }
+        await loadData(targetDir);
       } catch (err) {
         alert('スキャン実行に失敗しました: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '⚡ 再スキャン実行';
+        btn.innerHTML = '⚡ スキャン実行';
       }
     }
 

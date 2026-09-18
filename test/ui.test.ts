@@ -41,15 +41,20 @@ describe("UI Server", () => {
     });
   }
 
-  function httpPost(url: string): Promise<{ status: number; text: string; json?: any }> {
+  function httpPost(url: string, body?: any): Promise<{ status: number; text: string; json?: any }> {
     return new Promise((resolve, reject) => {
       const parsedUrl = new URL(url);
+      const postData = body ? JSON.stringify(body) : "";
       const req = http.request(
         {
           hostname: parsedUrl.hostname,
           port: parsedUrl.port,
           path: parsedUrl.pathname,
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(postData),
+          },
         },
         (res) => {
           let data = "";
@@ -66,6 +71,9 @@ describe("UI Server", () => {
         }
       );
       req.on("error", reject);
+      if (postData) {
+        req.write(postData);
+      }
       req.end();
     });
   }
@@ -99,5 +107,31 @@ describe("UI Server", () => {
     expect(scanRes.status).toBe(200);
     expect(scanRes.json.success).toBe(true);
     expect(scanRes.json.result).toBeDefined();
+  });
+
+  it("supports scanning a dynamic target directory specified in POST /api/scan", async () => {
+    const customProjectDir = path.join(tmpDir, "custom-project");
+    await fs.mkdir(customProjectDir, { recursive: true });
+    await fs.writeFile(
+      path.join(customProjectDir, "index.ts"),
+      'const secret = "sk_live_123456789012345678901234";'
+    );
+
+    const { server, port, url } = await startUiServer({
+      cwd: tmpDir,
+      port: 0,
+      open: false,
+    });
+    serverInstance = server;
+
+    const scanRes = await httpPost(`${url}/api/scan`, {
+      targetDir: customProjectDir,
+    });
+
+    expect(scanRes.status).toBe(200);
+    expect(scanRes.json.success).toBe(true);
+    expect(scanRes.json.targetDir).toBe(customProjectDir);
+    expect(scanRes.json.result.summary.critical).toBe(1);
+    expect(scanRes.json.result.violations[0].ruleId).toBe("SEC-001");
   });
 });
