@@ -30,3 +30,6 @@ test/
 # 仕様書除外（フェーズ2-C-β）
 REQUIREMENTS*.md
 SPECIFICATIONS*.md
+
+# 告知文・記事原稿・設定メモ除外（フェーズ2-C-δ）
+個人開発】*.txt
