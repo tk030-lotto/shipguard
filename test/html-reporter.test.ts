@@ -86,4 +86,13 @@ describe("HTML Reporter", () => {
     const exists = await fs.stat(expected).then(() => true).catch(() => false);
     expect(exists).toBe(true);
   });
+
+  it("formatHtmlReport renders escaped notices when provided", () => {
+    const html = formatHtmlReport({
+      ...mockResult,
+      notices: ["SEC-003 は対象 SQL が 0 件のため未実施 (<script>x</script>)"],
+    });
+    expect(html).toContain("SEC-003 は対象 SQL が 0 件のため未実施 (&lt;script&gt;x&lt;/script&gt;)");
+    expect(html).not.toContain("<script>x</script>");
+  });
 });

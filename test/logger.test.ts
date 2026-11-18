@@ -128,4 +128,24 @@ describe("audit logger", () => {
     const outsideAbs = path.resolve(tmpDir, "..", "outside-abs.log");
     expect(() => resolveSafeLogPath(tmpDir, outsideAbs)).toThrow("対象ディレクトリの外");
   });
+
+  it("rejects logging.path escaping rootDir via junction / symlink realpath", async () => {
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "shipguard-outside-target-"));
+    try {
+      const junctionPath = path.join(tmpDir, ".shipguard");
+      await fs.symlink(outsideDir, junctionPath, "junction");
+
+      await expect(
+        appendAuditLog(mockResult, tmpDir)
+      ).rejects.toThrow("実パスが対象ディレクトリの外");
+
+      const outsideLogExists = await fs
+        .stat(path.join(outsideDir, "audit.log"))
+        .then(() => true)
+        .catch(() => false);
+      expect(outsideLogExists).toBe(false);
+    } finally {
+      await fs.rm(outsideDir, { recursive: true, force: true });
+    }
+  });
 });

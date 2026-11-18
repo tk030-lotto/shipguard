@@ -135,4 +135,48 @@ describe("reporters", () => {
     const parsed = JSON.parse(fileContent);
     expect(parsed.id).toBe("uuid-reporter-test");
   });
+
+  it("outputReport does not generate HTML when --open is specified with json or markdown format", async () => {
+    await outputReport(mockResult, {
+      format: "json",
+      open: true,
+      cwd: tmpDir,
+    });
+    await outputReport(mockResult, {
+      format: "markdown",
+      open: true,
+      cwd: tmpDir,
+    });
+
+    const autoHtml = path.join(tmpDir, ".shipguard", "report.html");
+    const exists = await fs.stat(autoHtml).then(() => true).catch(() => false);
+    expect(exists).toBe(false);
+  });
+
+  it("outputReport throws when -o extension mismatches format", async () => {
+    await expect(
+      outputReport(mockResult, {
+        format: "terminal",
+        output: "report.html",
+        cwd: tmpDir,
+      })
+    ).rejects.toThrow("拡張子");
+
+    await expect(
+      outputReport(mockResult, {
+        format: "markdown",
+        output: "report.json",
+        cwd: tmpDir,
+      })
+    ).rejects.toThrow("拡張子");
+  });
+
+  it("includes notices in markdown report", () => {
+    const noticeResult: ScanResult = {
+      ...mockResult,
+      notices: ["SEC-003 は対象 SQL が 0 件のため未実施（migrationsDir: supabase/migrations）"],
+    };
+    const md = formatMarkdownReport(noticeResult);
+    expect(md).toContain("SEC-003 は対象 SQL が 0 件のため未実施");
+  });
 });

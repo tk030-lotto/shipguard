@@ -142,4 +142,31 @@ describe("SEC-004: ワイルドカードCORS設定検知", () => {
     expect(violations.length).toBe(1);
     expect(violations[0].ruleId).toBe("SEC-004");
   });
+
+  it("res.set()・複数行setHeader・origin: true を検知し、コメントや通常文字列を非検知とすること", () => {
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: "src/a.ts",
+          absolutePath: "/mock/src/a.ts",
+          content: [
+            'res.set("Access-Control-Allow-Origin", "*");',
+            "res.setHeader(",
+            '  "Access-Control-Allow-Origin",',
+            '  "*"',
+            ");",
+            "app.use(cors({ origin: true }));",
+            '// res.setHeader("Access-Control-Allow-Origin", "*");',
+            'const doc = "Access-Control-Allow-Origin: *";',
+          ].join("\n"),
+          extension: ".ts",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = corsRule.check(context);
+    expect(violations.map((v) => v.line)).toEqual([1, 2, 6]);
+  });
 });

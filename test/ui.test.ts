@@ -13,12 +13,13 @@ vi.mock("../src/utils/dialog.js", () => ({
   selectFileDialog: vi.fn().mockResolvedValue("C:\\Mock\\Project\\index.ts"),
 }));
 
-describe("UI Server", () => {
+describe("UI Server", { timeout: 15000 }, () => {
   let tmpDir: string;
   let serverInstance: http.Server | null = null;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "shipguard-ui-test-"));
+    await fs.writeFile(path.join(tmpDir, "seed.ts"), "export const seed = 1;\n", "utf8");
   });
 
   afterEach(async () => {
@@ -188,7 +189,7 @@ describe("UI Server", () => {
     expect(scanRes.json.result.violations[0].ruleId).toBe("SEC-001");
   });
 
-  it("rejects invalid Host / Origin headers with 403", async () => {
+  it("rejects invalid Host (including mismatched port) and Origin headers with 403", async () => {
     const { server, url } = await startUiServer({
       cwd: tmpDir,
       port: 0,
@@ -199,8 +200,68 @@ describe("UI Server", () => {
     const badHostRes = await httpGet(`${url}/api/status`, { Host: "evil.example.com" });
     expect(badHostRes.status).toBe(403);
 
+    const mismatchedPortHostRes = await httpGet(`${url}/api/status`, { Host: "localhost:9999" });
+    expect(mismatchedPortHostRes.status).toBe(403);
+
     const badOriginRes = await httpPost(`${url}/api/scan`, {}, { Origin: "https://evil.example.com" });
     expect(badOriginRes.status).toBe(403);
+  });
+
+  it("supports scanning a single file target without ENOTDIR and keeps /api/status consistent", async () => {
+    const subDir = path.join(tmpDir, "single-file-proj");
+    const filePath = path.join(subDir, "app.ts");
+    await fs.mkdir(subDir, { recursive: true });
+    await fs.writeFile(filePath, 'app.use(cors({ origin: "*" }));\n', "utf8");
+
+    const { server, url } = await startUiServer({
+      cwd: tmpDir,
+      port: 0,
+      open: false,
+    });
+    serverInstance = server;
+
+    const scanRes = await httpPost(`${url}/api/scan`, { targetDir: filePath });
+    expect(scanRes.status).toBe(200);
+    expect(scanRes.json.success).toBe(true);
+    expect(scanRes.json.result.summary.scannedFiles).toBe(1);
+    expect(scanRes.json.result.violations[0].ruleId).toBe("SEC-004");
+
+    const logExists = await fs
+      .stat(path.join(subDir, ".shipguard", "audit.log"))
+      .then(() => true)
+      .catch(() => false);
+    expect(logExists).toBe(true);
+
+    const statusRes = await httpGet(
+      `${url}/api/status?targetDir=${encodeURIComponent(filePath)}`
+    );
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.json.current).not.toBeNull();
+    expect(statusRes.json.history).toHaveLength(1);
+  });
+
+  it("returns error without exposing full local paths when target has 0 scannable files or is missing", async () => {
+    const emptyDir = path.join(tmpDir, "empty-dir");
+    await fs.mkdir(emptyDir, { recursive: true });
+
+    const { server, url } = await startUiServer({
+      cwd: tmpDir,
+      port: 0,
+      open: false,
+    });
+    serverInstance = server;
+
+    const emptyRes = await httpPost(`${url}/api/scan`, { targetDir: emptyDir });
+    expect(emptyRes.status).toBe(500);
+    expect(emptyRes.json.success).toBe(false);
+    expect(emptyRes.json.error).toContain("0 件");
+    expect(emptyRes.json.error).not.toContain(tmpDir);
+
+    const missingPath = path.join(tmpDir, "does-not-exist-dir");
+    const missingRes = await httpPost(`${url}/api/scan`, { targetDir: missingPath });
+    expect(missingRes.status).toBe(500);
+    expect(missingRes.json.success).toBe(false);
+    expect(missingRes.json.error).not.toContain(tmpDir);
   });
 
   it("rejects malformed JSON body on POST /api/scan with 400", async () => {

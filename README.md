@@ -19,22 +19,22 @@
 
 ## 主な特徴
 
-- **スタンドアロン動作 & 運用費0円**: APIサーバーや外部SaaSへの依存なし。アカウント登録不要で、ローカル端末またはCI上で実行できます。
+- **スタンドアロン動作 & 運用費0円**: 実行時依存はビルド済みバンドルに同梱されているため、zip を展開して `npm install` なしでそのまま実行できます。APIサーバーや外部SaaSへの依存もありません。
 - **個人開発向けの監査ルール**:
-  - **SEC-001**: ハードコードされたAPIキー（Stripe, OpenAI, Resend, AWS 等）の漏洩検知（既定でスニペット内の秘密文字列もマスク表示）
-  - **SEC-002**: クライアント公開環境変数（`NEXT_PUBLIC_`, `VITE_` 等）への秘密鍵混入検知（`.env.example` / `.env.sample` / `.env.template` はテンプレートのため検査対象外、`.env` 本体とソースコードを検査）
-  - **SEC-003**: Supabase / PostgreSQL の Row Level Security (RLS) 未設定テーブル検知（`database.migrationsDir` 配下の複数マイグレーション横断解析・`database.excludeTables` 対応）
-  - **SEC-004**: ソースコードや設定内のワイルドカード CORS (`*`) 検知
+  - **SEC-001**: ハードコードされたAPIキー（Stripe, OpenAI, Resend, AWS 等）や連結・テンプレート・配列結合による組み立て式の漏洩検知（`.env` 本体は対象外、`.env.example` 等の非プレースホルダーは対象）。既定でスニペット内のマッチした秘密文字列をマスク表示します（※マスク対象はマッチした文字列のみであり、同じ行内の別項目や別形式の文字列は残りうるため共有時は出力内容を確認してください）
+  - **SEC-002**: クライアント公開環境変数（`NEXT_PUBLIC_`, `VITE_` 等）への秘密鍵混入検知（`.gitignore` の有無にかかわらず `.env` 本体とソースコードを検査し、`.env.example` / `.env.sample` / `.env.template` は検査対象外。強危険語を含む場合は `ANON` 等の語を含んでいても検知）
+  - **SEC-003**: Supabase / PostgreSQL の Row Level Security (RLS) 未設定テーブル検知（コメント除去後の複数行・CTAS・引用符識別子対応、`database.migrationsDir` 配下の横断解析、`database.excludeTables` 対応。対象 SQL が 0 件の場合は終了コードを変えず注記を表示）
+  - **SEC-004**: 対象ソースコード・設定ファイル（`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.json`）内のワイルドカード CORS (`*`) や `origin: true` 検知
   - **CFG-001**: `.env.example` / `.env.template` とローカル `.env` / `.env.local` のキー定義乖離検知
 - **走査時の自動除外とサイズ上限**:
-  - `.gitignore`、`**/.shipguard/**`、`node_modules`、`dist`、テストファイル（`**/test/**`, `**/*.test.*` 等）、バイナリファイルを自動除外します。
-  - 既定の上限サイズ（2MB、`scan.maxFileSizeBytes` で変更可）を超えるファイルは警告を出してスキップします。
+  - `.gitignore`（ただし `.env` / `.env.*` は検査対象として収集）、`**/.shipguard/**`、`node_modules`、`dist`、テストファイル（`**/test/**`, `**/*.test.*` 等）、バイナリファイルを自動除外します。
+  - 既定の上限サイズ（2MB、`scan.maxFileSizeBytes` で変更可）を超えるファイルは警告を出してスキップします。走査対象ファイルが 0 件になった場合は合格とせずエラー終了（終了コード 2）します。
 - **実行ログの永続化**: スキャン結果は `.shipguard/audit.log`（NDJSON、Git コミットハッシュ付き）に自動記録され、過去の履歴を追跡できます（UI 起動時の自動スキャンはログに混ぜません）。
 - **CI/CD 連携**: GitHub Actions 等に組み込み、違反検知時は終了コード 1 でデプロイを遮断します。
 
 ## インストール（GitHub Releases）
 
-`shipguard` は npm レジストリには公開していません（npm 上の同名パッケージは別プロジェクトです）。[GitHub Releases](https://github.com/tk030-lotto/shipguard/releases) からリリース版 zip をダウンロードして利用してください（必要環境: Node.js >= 18.0.0）。
+`shipguard` は npm レジストリには公開していません（npm 上の同名パッケージは別プロジェクトです）。[GitHub Releases](https://github.com/tk030-lotto/shipguard/releases) からリリース版 zip をダウンロードして利用してください（必要環境: Node.js >= 18.0.0。展開先での `npm install` は不要です）。
 
 ```bash
 # 1. GitHub Releases から shipguard-v0.1.0.zip をダウンロードして展開
@@ -77,8 +77,8 @@ node /path/to/shipguard/bin/shipguard.js scan
 # critical/high に加え medium/low を含む全レベルの違反が1件でもあれば終了コード 1 を返す
 node /path/to/shipguard/bin/shipguard.js scan --strict
 
-# スキャン後に HTML レポートを生成（既定: .shipguard/report.html）してブラウザで開く
-node /path/to/shipguard/bin/shipguard.js scan --open
+# HTML レポートを生成（既定: .shipguard/report.html）してブラウザで開く（--open は --format html 時のみ有効）
+node /path/to/shipguard/bin/shipguard.js scan --format html --open
 
 # スタンドアロン HTML レポートを指定パスへ出力
 node /path/to/shipguard/bin/shipguard.js scan --format html -o report.html
@@ -106,12 +106,12 @@ node /path/to/shipguard/bin/shipguard.js scan --show-secrets
 
 - `0`: 違反なし（または `--strict` 未指定で `medium` / `low` のみ）
 - `1`: 遮断対象の違反を検知（通常は `critical` / `high`、`--strict` 指定時は全レベルが1件以上）
-- `2`: 実行時エラー（`.shipguardrc.json` の構文/スキーマエラー、不明な `--format`、対象パス不在など）
+- `2`: 実行時・設定・引数エラー（引数エラー・未知オプション・不正数値・未知コマンド、`.shipguardrc.json` の構文/スキーマエラー・未知ルール ID、不明な `--format`、`-o` 拡張子と形式の不一致、走査対象ファイル 0 件、対象パス不在など。UI 経由では HTTP 400/500 のエラー応答になります）
 
 ### 3. ローカル Web UI ダッシュボードの起動
 
-ターミナルだけでなく、ブラウザ（`http://127.0.0.1:3773`、ループバック限定バインド）から監査結果と実行履歴を確認・再実行できます（外部通信なし・0円ローカル完結）。
-画面上部からスキャン対象プロジェクトフォルダやファイルを切り替えて監査できます。
+ターミナルだけでなく、ブラウザ（`http://127.0.0.1:3773`、ループバック限定バインド。ポート使用中で `--port` 未指定時は 3774 以降へ自動再試行）から監査結果と実行履歴を確認・再実行できます（外部通信なし・0円ローカル完結）。
+画面上部からスキャン対象プロジェクトフォルダや単一ファイルを切り替えて監査できます。
 
 #### 方法A: ワンクリック起動（Windows / ターミナル操作不要）
 展開フォルダ直下の `shipguard-ui.bat` をダブルクリックすると、ブラウザでダッシュボードが立ち上がります。
@@ -123,7 +123,7 @@ node /path/to/shipguard/bin/shipguard.js ui
 
 ## 設定ファイル (`.shipguardrc.json`)
 
-プロジェクト固有の要件に合わせてルールや除外設定をカスタマイズできます。構文エラーや未知キー・不正値がある場合は終了コード `2` で停止します。
+プロジェクト固有の要件に合わせてルールや除外設定をカスタマイズできます。構文エラー・未知キー・未知ルール ID・不正値がある場合は終了コード `2` で停止します。
 
 ```json
 {
@@ -155,7 +155,7 @@ node /path/to/shipguard/bin/shipguard.js ui
 
 - `database.migrationsDir`: `SEC-003` の走査対象とする SQL マイグレーションディレクトリ（既定: `"supabase/migrations"`）。
 - `database.excludeTables`: `SEC-003` で RLS 検証から除外するテーブル名配列。
-- `logging.path`: 対象ディレクトリ内の相対パスを指定します（対象ディレクトリ外を指す指定は拒否されます）。
+- `logging.path`: 対象ディレクトリ内の相対パスを指定します（字句上および実パス `realpath` 上で対象ディレクトリ外を指す指定・シンボリックリンク/ジャンクション経由の逸脱は拒否されます）。
 
 ## 監査ログの確認
 

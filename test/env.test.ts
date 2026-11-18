@@ -95,6 +95,47 @@ describe("SEC-002: クライアント公開プレフィックス秘密情報検�
     const violations = clientEnvSecretsRule.check(context);
     expect(violations.length).toBe(0);
   });
+
+  it("危険語を安全語より先に判定し、TOKEN / API_KEY / KEY を検知し、コメント行と非代入行を除外すること", () => {
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: ".env",
+          absolutePath: "/mock/.env",
+          content: [
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY=safe",
+            "NEXT_PUBLIC_ANON_SERVICE_ROLE_KEY=danger1",
+            "NEXT_PUBLIC_DB_PASSWORD_ANON=danger2",
+            "NEXT_PUBLIC_OPENAI_API_KEY=danger3",
+            "NEXT_PUBLIC_MAPBOX_TOKEN=danger4",
+            "NEXT_PUBLIC_GITHUB_TOKEN=danger5",
+            "NEXT_PUBLIC_CUSTOM_KEY=danger6",
+            "# NEXT_PUBLIC_COMMENTED_SECRET=ignored",
+            "not a var NEXT_PUBLIC_INLINE_SECRET here",
+          ].join("\n"),
+          extension: "",
+        },
+        {
+          path: "src/config.ts",
+          absolutePath: "/mock/src/config.ts",
+          content: [
+            "// process.env.NEXT_PUBLIC_COMMENT_KEY",
+            "const bad = process.env.NEXT_PUBLIC_ANON_SERVICE_ROLE_KEY;",
+          ].join("\n"),
+          extension: ".ts",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = clientEnvSecretsRule.check(context);
+    const envLines = violations.filter((v) => v.filePath === ".env").map((v) => v.line);
+    const srcLines = violations.filter((v) => v.filePath === "src/config.ts").map((v) => v.line);
+
+    expect(envLines).toEqual([2, 3, 4, 5, 6, 7]);
+    expect(srcLines).toEqual([2]);
+  });
 });
 
 describe("CFG-001: 環境変数テンプレート未設定検知", () => {

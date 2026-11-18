@@ -91,4 +91,78 @@ describe("SEC-001: ハードコードシークレット検知", () => {
     const violations = secretsRule.check(context);
     expect(violations.length).toBe(0);
   });
+
+  it(".env / .env.local 等の実環境変数ファイルは SEC-001 の対象外となること", () => {
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: ".env",
+          absolutePath: "/mock/.env",
+          content: `STRIPE_SECRET_KEY=${dummyStripeKey}\n`,
+          extension: "",
+        },
+        {
+          path: ".env.local",
+          absolutePath: "/mock/.env.local",
+          content: `OPENAI_API_KEY=${dummyOpenAiKey}\n`,
+          extension: "",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = secretsRule.check(context);
+    expect(violations.length).toBe(0);
+  });
+
+  it(".env.example 内のプレースホルダーではない実キー形式は引き続き検知されること", () => {
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: ".env.example",
+          absolutePath: "/mock/.env.example",
+          content: `STRIPE_SECRET_KEY=${dummyStripeKey}\n`,
+          extension: "",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = secretsRule.check(context);
+    expect(violations.length).toBe(1);
+  });
+
+  it("文字列連結・テンプレートリテラル・配列joinによる秘密鍵の組み立てを検知しマスクすること", () => {
+    const partA = "sk_";
+    const partB = "live_";
+    const partC = "abcdefghijklmnopqrstuvwx";
+    const partArr1 = "sk_live_abcd";
+    const partArr2 = "efghijklmnopqrstuvwx";
+
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: "src/concat.ts",
+          absolutePath: "/mock/src/concat.ts",
+          content: [
+            `const a = "${partA}" + "${partB}" + "${partC}";`,
+            `const b = \`${partA}${partB}\${suffix}\`;`,
+            `const c = ["${partArr1}", "${partArr2}"].join("");`,
+          ].join("\n"),
+          extension: ".ts",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = secretsRule.check(context);
+    expect(violations).toHaveLength(3);
+    expect(violations.map((v) => v.line)).toEqual([1, 2, 3]);
+    expect(violations[0].snippet).not.toContain(partC);
+    expect(violations[1].snippet).not.toContain("`${");
+    expect(violations[2].snippet).not.toContain(partArr2);
+  });
 });

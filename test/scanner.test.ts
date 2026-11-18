@@ -87,4 +87,23 @@ describe("scanner: ファイル収集エンジン", () => {
     const skippedSingle = await collectFiles(singleFile, [], 2);
     expect(skippedSingle).toEqual([]);
   });
+
+  it(".env および .env.* は .gitignore で除外されていても収集され、node_modules 配下の .env は除外されること", async () => {
+    await fs.mkdir(path.join(tempDir, "node_modules", "pkg"), { recursive: true });
+    await fs.writeFile(path.join(tempDir, ".gitignore"), ".env\n.env.*\nignored.ts\n");
+    await fs.writeFile(path.join(tempDir, ".env"), "SECRET=1\n");
+    await fs.writeFile(path.join(tempDir, ".env.local"), "SECRET=2\n");
+    await fs.writeFile(path.join(tempDir, ".env.example"), "SECRET=\n");
+    await fs.writeFile(path.join(tempDir, "ignored.ts"), "export const a = 1;\n");
+    await fs.writeFile(path.join(tempDir, "node_modules", "pkg", ".env"), "SECRET=bad\n");
+
+    const files = await collectFiles(tempDir);
+    const filePaths = files.map((f) => f.path.replace(/\\/g, "/"));
+
+    expect(filePaths).toContain(".env");
+    expect(filePaths).toContain(".env.local");
+    expect(filePaths).toContain(".env.example");
+    expect(filePaths).not.toContain("ignored.ts");
+    expect(filePaths).not.toContain("node_modules/pkg/.env");
+  });
 });

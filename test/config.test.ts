@@ -105,5 +105,12 @@ describe("Config Schema & Loader", () => {
       "utf8"
     );
     await expect(loadConfig(tmpDir)).rejects.toThrow("スキーマが不正");
+
+    await fs.writeFile(
+      path.join(tmpDir, ".shipguardrc.json"),
+      JSON.stringify({ rules: { "SEC-01": "off" } }),
+      "utf8"
+    );
+    await expect(loadConfig(tmpDir)).rejects.toThrow("スキーマが不正");
   });
 });
