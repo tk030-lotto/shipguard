@@ -14,7 +14,7 @@
   - ターミナル表示（既定）
   - JSON形式（`--format json` で標準出力、`-o <path>` 指定時は指定ファイルに保存）
   - Markdown形式（`--format markdown` で標準出力、`-o <path>` 指定時は指定ファイルに保存）
-  - HTML形式（`--format html` または `--open` で `-o` 未指定時は `.shipguard/report.html` に保存、`-o <path>` 指定時は指定ファイルに保存）
+  - HTML形式（`--format html` で `-o` 未指定時は `.shipguard/report.html` に保存、`-o <path>` 指定時は指定ファイルに保存。`--open` 併用時はブラウザで表示）
 - **監査ログの永続化**:
   - `scan` 実行結果を `.shipguard/audit.log` (NDJSON、Git コミットハッシュ付き) に自動記録
 - **ローカル Web UI**:
@@ -38,8 +38,8 @@ node /path/to/shipguard/bin/shipguard.js init
 # 監査スキャンの実行
 node /path/to/shipguard/bin/shipguard.js scan
 
-# HTML レポートを生成してブラウザで開く (.shipguard/report.html)
-node /path/to/shipguard/bin/shipguard.js scan --open
+# HTML レポートを生成してブラウザで開く (.shipguard/report.html、--open は --format html 時のみ有効)
+node /path/to/shipguard/bin/shipguard.js scan --format html --open
 
 # 全レベルの違反で停止
 node /path/to/shipguard/bin/shipguard.js scan --strict

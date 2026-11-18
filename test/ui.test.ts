@@ -406,4 +406,34 @@ describe("UI Server", { timeout: 15000 }, () => {
     expect(renderedHistory).not.toContain("<script>alert");
     expect(renderedHistory).toContain("&lt;script&gt;alert(&quot;ts&quot;)&lt;/script&gt;");
   });
+
+  it("masks .env values in SEC-002 violations returned by /api/scan and /api/status", async () => {
+    const envProjDir = path.join(tmpDir, "env-mask-proj");
+    await fs.mkdir(envProjDir, { recursive: true });
+    const jwtValue = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.sig123";
+    await fs.writeFile(path.join(envProjDir, ".gitignore"), ".env\n", "utf8");
+    await fs.writeFile(
+      path.join(envProjDir, ".env"),
+      `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=${jwtValue}\n`,
+      "utf8"
+    );
+
+    const { server, url } = await startUiServer({
+      cwd: tmpDir,
+      port: 0,
+      open: false,
+    });
+    serverInstance = server;
+
+    const scanRes = await httpPost(`${url}/api/scan`, { targetDir: envProjDir });
+    expect(scanRes.status).toBe(200);
+    expect(scanRes.text).toContain("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=********");
+    expect(scanRes.text).not.toContain(jwtValue);
+    expect(scanRes.text).not.toContain("eyJyb2xlIjoic2VydmljZV9yb2xlIn0");
+
+    const statusRes = await httpGet(`${url}/api/status`);
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.text).toContain("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=********");
+    expect(statusRes.text).not.toContain(jwtValue);
+  });
 });

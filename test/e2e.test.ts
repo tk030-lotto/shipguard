@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runScan } from "../src/commands/scan.js";
+import {
+  formatHtmlReport,
+  formatJsonReport,
+  formatMarkdownReport,
+} from "../src/reporter/index.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -106,6 +111,47 @@ describe("E2E Scan Integration", () => {
       expect(result.notices).toEqual([
         "SEC-003 は対象 SQL が 0 件のため未実施（migrationsDir: supabase/migrations）",
       ]);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("gitignore された .env 内の JWT 値を持つ NEXT_PUBLIC_ 変数が terminal / json / markdown / html のどこにも平文出力されないこと", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "shipguard-e2e-sec002-mask-"));
+    const jwtHeader = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+    const jwtPayload = "eyJyb2xlIjoic2VydmljZV9yb2xlIn0";
+    const jwtSig = "dummySignatureToken123456";
+    const jwtValue = `${jwtHeader}.${jwtPayload}.${jwtSig}`;
+
+    try {
+      await fs.writeFile(path.join(tmpDir, ".gitignore"), ".env\n");
+      await fs.writeFile(
+        path.join(tmpDir, ".env"),
+        `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=${jwtValue}\n`
+      );
+
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      let result;
+      try {
+        result = await runScan({ cwd: tmpDir, format: "terminal" });
+      } finally {
+        const terminalOutput = logSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+        logSpy.mockRestore();
+        expect(terminalOutput).toContain("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=********");
+        expect(terminalOutput).not.toContain(jwtValue);
+        expect(terminalOutput).not.toContain(jwtPayload);
+      }
+
+      const jsonOut = formatJsonReport(result!);
+      const mdOut = formatMarkdownReport(result!);
+      const htmlOut = formatHtmlReport(result!);
+
+      for (const out of [jsonOut, mdOut, htmlOut]) {
+        expect(out).toContain("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=********");
+        expect(out).not.toContain(jwtValue);
+        expect(out).not.toContain(jwtPayload);
+        expect(out).not.toContain(jwtSig);
+      }
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }

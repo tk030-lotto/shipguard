@@ -61,7 +61,7 @@ function parseEnvKeys(content: string): Array<{ key: string; line: number }> {
     if (!line || line.startsWith("#")) {
       continue;
     }
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+    const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/);
     if (match) {
       result.push({ key: match[1], line: i + 1 });
     }
@@ -118,17 +118,22 @@ export const clientEnvSecretsRule: Rule = {
           if (trimmed.startsWith("#")) {
             continue;
           }
-          const assignMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+          const assignMatch = trimmed.match(/^(export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/);
           if (!assignMatch) {
             continue;
           }
-          const varName = assignMatch[1];
+          const exportPrefix = assignMatch[1] ? "export " : "";
+          const varName = assignMatch[2];
+          const rawValue = assignMatch[3].trim();
           const matchedPrefix = PUBLIC_PREFIXES.find((prefix) => varName.startsWith(prefix));
           if (!matchedPrefix) {
             continue;
           }
           if (isSensitivePublicVar(varName.toUpperCase())) {
             const colIndex = lineContent.indexOf(varName);
+            const maskedSnippet = rawValue
+              ? `${exportPrefix}${varName}=********`
+              : `${exportPrefix}${varName}=`;
             violations.push({
               ruleId: clientEnvSecretsRule.id,
               ruleName: clientEnvSecretsRule.name,
@@ -136,7 +141,7 @@ export const clientEnvSecretsRule: Rule = {
               line: lineIndex + 1,
               column: colIndex >= 0 ? colIndex + 1 : 1,
               message: `公開環境変数プレフィックス '${matchedPrefix}' が付与された変数 '${varName}' に秘密情報が含まれている可能性があります`,
-              snippet: trimmed,
+              snippet: maskedSnippet,
               severity: clientEnvSecretsRule.defaultSeverity,
             });
           }

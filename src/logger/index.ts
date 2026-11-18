@@ -23,7 +23,7 @@ function resolveRealPathWithExistingAncestor(targetPath: string): string {
     current = parent;
   }
 
-  const realBase = fsSync.realpathSync(current);
+  const realBase = fsSync.realpathSync.native(current);
   return segments.length > 0 ? path.resolve(realBase, ...segments) : realBase;
 }
 

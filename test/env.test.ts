@@ -136,6 +136,52 @@ describe("SEC-002: クライアント公開プレフィックス秘密情報検�
     expect(envLines).toEqual([2, 3, 4, 5, 6, 7]);
     expect(srcLines).toEqual([2]);
   });
+
+  it("export 接頭辞付きの代入を SEC-002 で検知し、値をマスクすること", () => {
+    const secretVal = "secret_jwt_payload_xyz";
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: ".env",
+          absolutePath: "/mock/.env",
+          content: `export NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=${secretVal}\n`,
+          extension: "",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = clientEnvSecretsRule.check(context);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].message).toContain("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY");
+    expect(violations[0].snippet).toBe("export NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=********");
+    expect(violations[0].snippet).not.toContain(secretVal);
+  });
+
+  it("CFG-001 でも export 接頭辞付きの定義済み変数を認識し誤報しないこと", () => {
+    const context: ScanContext = {
+      rootDir: "/mock",
+      files: [
+        {
+          path: ".env.example",
+          absolutePath: "/mock/.env.example",
+          content: "DATABASE_URL=\n",
+          extension: "",
+        },
+        {
+          path: ".env",
+          absolutePath: "/mock/.env",
+          content: "export DATABASE_URL=postgres://localhost/db\n",
+          extension: "",
+        },
+      ],
+      config: {},
+    };
+
+    const violations = envSyncRule.check(context);
+    expect(violations).toHaveLength(0);
+  });
 });
 
 describe("CFG-001: 環境変数テンプレート未設定検知", () => {
