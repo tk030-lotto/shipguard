@@ -1,8 +1,7 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import pc from "picocolors";
 import { loadConfig } from "../config/loader.js";
-import { readAuditLogs } from "../logger/index.js";
+import { readAuditLogsDetailed, resolveSafeLogPath } from "../logger/index.js";
 import type { AuditLogRecord } from "../types/index.js";
 
 export interface HistoryOptions {
@@ -20,7 +19,7 @@ export async function runHistory(
   const rootDir = options.cwd ?? process.cwd();
   const config = await loadConfig(rootDir);
   const logRelativePath = config.logging?.path || ".shipguard/audit.log";
-  const logFilePath = path.resolve(rootDir, logRelativePath);
+  const logFilePath = resolveSafeLogPath(rootDir, logRelativePath);
 
   // ログクリア指定の場合
   if (options.clear) {
@@ -38,11 +37,17 @@ export async function runHistory(
   }
 
   // ログ読み出し
-  const records = await readAuditLogs(logFilePath);
+  const { records, skippedLines } = await readAuditLogsDetailed(logFilePath);
 
   console.log("");
   console.log(pc.bold(pc.cyan("  ▲ shipguard")) + pc.gray(` — 監査履歴`));
   console.log(pc.gray("  " + "─".repeat(60)));
+
+  if (skippedLines > 0) {
+    console.warn(
+      pc.yellow(`  ⚠ 破損または不正な形式のため ${skippedLines} 件のログ行をスキップしました。`)
+    );
+  }
 
   if (records.length === 0) {
     console.log(

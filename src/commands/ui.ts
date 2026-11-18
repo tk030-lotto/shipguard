@@ -2,7 +2,7 @@ import http from "node:http";
 import path from "node:path";
 import pc from "picocolors";
 import { loadConfig } from "../config/loader.js";
-import { readAuditLogs } from "../logger/index.js";
+import { readAuditLogsDetailed, resolveSafeLogPath } from "../logger/index.js";
 import type { AuditLogRecord, ScanResult } from "../types/index.js";
 import { selectFileDialog, selectFolderDialog } from "../utils/dialog.js";
 import { openInBrowser } from "../utils/open.js";
@@ -15,20 +15,73 @@ export interface UiOptions {
   open?: boolean;
 }
 
+class BadRequestError extends Error {}
+
 /**
- * リクエストボディをJSONとしてパースするヘルパー
+ * ターゲットパスがベースディレクトリの範囲内か判定する
  */
-function readJsonBody(req: http.IncomingMessage): Promise<any> {
-  return new Promise((resolve) => {
+function isPathWithin(baseDir: string, targetPath: string): boolean {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedTarget = path.resolve(targetPath);
+  const rel = path.relative(resolvedBase, resolvedTarget);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
+ * Host / Origin ヘッダがローカルループバックに限定されているか検証する
+ */
+function isLocalRequestAllowed(req: http.IncomingMessage, actualPort: number | null): boolean {
+  const hostHeader = req.headers.host;
+  if (hostHeader) {
+    const hostname = hostHeader.replace(/:\d+$/, "").toLowerCase();
+    if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+      return false;
+    }
+  }
+
+  const originHeader = req.headers.origin;
+  if (originHeader) {
+    try {
+      const originUrl = new URL(originHeader);
+      const originHost = originUrl.hostname.toLowerCase();
+      if (originHost !== "127.0.0.1" && originHost !== "localhost") {
+        return false;
+      }
+      if (actualPort !== null && Number(originUrl.port) !== actualPort) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * リクエストボディをJSONとして厳格にパースするヘルパー
+ */
+function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
     let data = "";
     req.on("data", (chunk) => (data += chunk));
     req.on("end", () => {
-      try {
-        resolve(data ? JSON.parse(data) : {});
-      } catch {
+      if (!data || data.trim() === "") {
         resolve({});
+        return;
+      }
+      try {
+        const parsed: unknown = JSON.parse(data);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          reject(new BadRequestError("リクエストボディはJSONオブジェクトである必要があります"));
+          return;
+        }
+        resolve(parsed as Record<string, unknown>);
+      } catch {
+        reject(new BadRequestError("リクエストボディが不正なJSON形式です"));
       }
     });
+    req.on("error", reject);
   });
 }
 
@@ -41,16 +94,27 @@ export async function startUiServer(
   const defaultRootDir = path.resolve(options.cwd ?? process.cwd());
   let currentTargetDir = defaultRootDir;
   let latestResult: ScanResult | null = null;
+  let initialScanError: string | null = null;
+  let isScanning = false;
+  let boundPort: number | null = null;
 
-  // 初回スキャンを実行して最新状態を準備
+  // 初回スキャンを実行して最新状態を準備（起動時の自動スキャンは監査ログに追記しない）
   try {
-    latestResult = await runScan({ cwd: defaultRootDir, format: "terminal" });
-  } catch (error) {
-    console.warn(pc.yellow(`  [UI] 初回スキャンの取得に失敗しました: ${error}`));
+    latestResult = await runScan({ cwd: defaultRootDir, format: "terminal", skipAuditLog: true });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    initialScanError = msg;
+    console.warn(pc.yellow(`  [UI] 初回スキャンの取得に失敗しました: ${msg}`));
   }
 
   const server = http.createServer(async (req, res) => {
-    const parsedUrl = new URL(req.url || "/", "http://localhost");
+    if (!isLocalRequestAllowed(req, boundPort)) {
+      res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ success: false, error: "Forbidden: invalid Host or Origin" }));
+      return;
+    }
+
+    const parsedUrl = new URL(req.url || "/", "http://127.0.0.1");
     const pathname = parsedUrl.pathname;
 
     // 1. ダッシュボード画面 HTML
@@ -62,30 +126,80 @@ export async function startUiServer(
 
     // 2. ステータス・履歴取得 API
     if (req.method === "GET" && pathname === "/api/status") {
-      const queryDir = parsedUrl.searchParams.get("targetDir");
-      const targetDir = queryDir ? path.resolve(queryDir) : currentTargetDir;
-      const config = await loadConfig(targetDir);
-      const logRelativePath = config.logging?.path || ".shipguard/audit.log";
-      const logFilePath = path.resolve(targetDir, logRelativePath);
-      const history: AuditLogRecord[] = await readAuditLogs(logFilePath);
+      try {
+        const queryDir = parsedUrl.searchParams.get("targetDir");
+        if (queryDir && queryDir.includes("\0")) {
+          res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ error: "Invalid targetDir: null byte detected" }));
+          return;
+        }
 
-      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(
-        JSON.stringify({
-          targetDir,
-          current: latestResult,
-          history,
-        })
-      );
+        const targetDir = queryDir ? path.resolve(queryDir) : currentTargetDir;
+        if (
+          queryDir &&
+          !isPathWithin(defaultRootDir, targetDir) &&
+          !isPathWithin(currentTargetDir, targetDir)
+        ) {
+          res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(
+            JSON.stringify({
+              error: "指定されたディレクトリの履歴へのアクセスは許可されていません",
+            })
+          );
+          return;
+        }
+
+        const config = await loadConfig(targetDir);
+        const logRelativePath = config.logging?.path || ".shipguard/audit.log";
+        const logFilePath = resolveSafeLogPath(targetDir, logRelativePath);
+        const { records: history, skippedLines } = await readAuditLogsDetailed(logFilePath);
+
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(
+          JSON.stringify({
+            targetDir,
+            current: latestResult,
+            history,
+            skippedLogLines: skippedLines,
+            error: initialScanError,
+          })
+        );
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: msg }));
+      }
       return;
     }
 
-    // 3. 再スキャン実行 API (任意のディレクトリ指定に対応)
+    // 3. 再スキャン実行 API (任意のディレクトリ指定に対応・二重実行ガード付き)
     if (req.method === "POST" && pathname === "/api/scan") {
+      if (isScanning) {
+        res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: "スキャンを実行中です。完了までお待ちください。",
+          })
+        );
+        return;
+      }
+
+      isScanning = true;
       try {
         const body = await readJsonBody(req);
-        const rawTargetDir = body.targetDir ? String(body.targetDir) : null;
-        const targetDir = rawTargetDir ? path.resolve(rawTargetDir) : currentTargetDir;
+        if (
+          body.targetDir !== undefined &&
+          body.targetDir !== null &&
+          typeof body.targetDir !== "string"
+        ) {
+          throw new BadRequestError("targetDir は文字列である必要があります");
+        }
+
+        const rawTargetDir =
+          typeof body.targetDir === "string" && body.targetDir.trim() !== ""
+            ? body.targetDir
+            : null;
 
         // パストラバーサルガード: null バイトを含む不正パスを拒否
         if (rawTargetDir && rawTargetDir.includes("\0")) {
@@ -94,9 +208,13 @@ export async function startUiServer(
           return;
         }
 
-        currentTargetDir = targetDir;
+        const targetDir = rawTargetDir ? path.resolve(rawTargetDir) : currentTargetDir;
+        const result = await runScan({ cwd: targetDir, format: "terminal" });
 
-        latestResult = await runScan({ cwd: targetDir, format: "terminal" });
+        currentTargetDir = targetDir;
+        latestResult = result;
+        initialScanError = null;
+
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(
           JSON.stringify({
@@ -105,9 +223,13 @@ export async function startUiServer(
             result: latestResult,
           })
         );
-      } catch (err: any) {
-        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ success: false, error: err?.message || String(err) }));
+      } catch (err: unknown) {
+        const status = err instanceof BadRequestError ? 400 : 500;
+        const msg = err instanceof Error ? err.message : String(err);
+        res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ success: false, error: msg }));
+      } finally {
+        isScanning = false;
       }
       return;
     }
@@ -149,9 +271,10 @@ export async function startUiServer(
 
   return new Promise((resolve, reject) => {
     function tryListen(port: number) {
-      server.listen(port, async () => {
+      server.listen(port, "127.0.0.1", async () => {
         const actualPort = (server.address() as any).port;
-        const url = `http://localhost:${actualPort}`;
+        boundPort = actualPort;
+        const url = `http://127.0.0.1:${actualPort}`;
 
         console.log("");
         console.log(pc.bold(pc.cyan("  ▲ shipguard UI")) + pc.gray(" — ローカルダッシュボード稼働中"));

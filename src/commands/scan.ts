@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { loadConfig } from "../config/loader.js";
 import { collectFiles } from "../core/scanner.js";
 import { appendAuditLog, getGitCommitHash } from "../logger/index.js";
-import { outputReport } from "../reporter/index.js";
+import { outputReport, VALID_REPORT_FORMATS } from "../reporter/index.js";
 import { executeRules } from "../rules/index.js";
 import type { ScanOptions, ScanResult, Violation } from "../types/index.js";
 
@@ -10,6 +10,12 @@ import type { ScanOptions, ScanResult, Violation } from "../types/index.js";
  * 監査スキャンを実行し、結果を返す
  */
 export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
+  if (options.format !== undefined && !VALID_REPORT_FORMATS.includes(options.format)) {
+    throw new Error(
+      `不明な出力形式が指定されました: ${options.format} (指定可能: ${VALID_REPORT_FORMATS.join(", ")})`
+    );
+  }
+
   const rootDir = options.cwd ?? process.cwd();
   const config = await loadConfig(rootDir);
 
@@ -28,6 +34,7 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
     rootDir,
     files,
     config,
+    showSecrets: options.showSecrets,
   });
 
   // 3. サマリー集計
@@ -75,7 +82,9 @@ export async function runScan(options: ScanOptions = {}): Promise<ScanResult> {
   };
 
   // 4. 監査ログのローカル永続化 (.shipguard/audit.log)
-  await appendAuditLog(result, rootDir, config);
+  if (!options.skipAuditLog) {
+    await appendAuditLog(result, rootDir, config);
+  }
 
   // 5. レポート出力
   await outputReport(result, options);

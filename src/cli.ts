@@ -3,6 +3,8 @@ import { runHistory } from "./commands/history.js";
 import { runInit } from "./commands/init.js";
 import { runScan } from "./commands/scan.js";
 import { startUiServer } from "./commands/ui.js";
+import { VALID_REPORT_FORMATS } from "./reporter/index.js";
+import { ALL_RULES } from "./rules/index.js";
 import type { ScanOptions } from "./types/index.js";
 
 const program = new Command();
@@ -12,29 +14,41 @@ program
   .description("個人開発者のための事前ローンチ・セキュリティ＆設定監査CLI")
   .version("0.1.0");
 
-program
+const scanCommand = program
   .command("scan", { isDefault: true })
   .description("プロジェクトを走査し、セキュリティ・設定不備を監査します")
-  .option("-s, --strict", "WARNING/LOWレベルを含むすべての違反で終了コード1を返します")
+  .option("-s, --strict", "critical/high に加え medium/low を含むすべての違反で終了コード1を返します")
   .option("-f, --format <format>", "出力形式を指定します (terminal, markdown, json, html)", "terminal")
   .option("-o, --output <path>", "レポート出力先ファイルパスを指定します")
   .option("--open", "スキャン完了後にレポートをブラウザで開きます")
   .option("-i, --ignore <patterns...>", "監査対象外とするGlobパターンを指定します")
+  .option("--show-secrets", "検知された秘密情報の原文をスニペットに表示します（既定はマスク表示）")
   .action(
     async (cmdOptions: {
       strict?: boolean;
-      format?: "terminal" | "markdown" | "json" | "html";
+      format?: string;
       output?: string;
       open?: boolean;
       ignore?: string[];
+      showSecrets?: boolean;
     }) => {
       try {
+        if (
+          cmdOptions.format !== undefined &&
+          !VALID_REPORT_FORMATS.includes(cmdOptions.format as any)
+        ) {
+          throw new Error(
+            `不明な出力形式が指定されました: ${cmdOptions.format} (指定可能: ${VALID_REPORT_FORMATS.join(", ")})`
+          );
+        }
+
         const options: ScanOptions = {
           strict: Boolean(cmdOptions.strict),
-          format: cmdOptions.format,
+          format: cmdOptions.format as ScanOptions["format"],
           output: cmdOptions.output,
           open: cmdOptions.open,
           ignore: cmdOptions.ignore,
+          showSecrets: Boolean(cmdOptions.showSecrets),
         };
 
         const result = await runScan(options);
@@ -48,6 +62,15 @@ program
       }
     }
   );
+
+scanCommand.addHelpText(
+  "after",
+  () =>
+    `\n利用可能な監査ルール:\n` +
+    ALL_RULES.map(
+      (r) => `  ${r.id.padEnd(8)} [${r.defaultSeverity.toUpperCase()}] ${r.name}: ${r.description}`
+    ).join("\n")
+);
 
 program
   .command("ui")

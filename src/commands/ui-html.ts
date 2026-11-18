@@ -9,7 +9,7 @@ function escapeHtml(str: string): string {
 
 /**
  * shipguard ローカルWeb UI ダッシュボードのHTMLテンプレート
- * （プロジェクト統計ツール準拠デザインシステム: #09090b 背景, #121215 カード, #27272a ボーダー）
+ * （ローカルダークデザインシステム: #09090b 背景, #121215 カード, #27272a ボーダー）
  */
 export function getDashboardHtml(initialTargetDir: string = ""): string {
   const escapedDir = escapeHtml(initialTargetDir);
@@ -20,9 +20,6 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>shipguard Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #09090b;
@@ -39,8 +36,10 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
       --medium: #eab308;
       --low: #3b82f6;
       --pass: #10b981;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
     body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1.5rem; }
     .container { max-width: 1100px; margin: 0 auto; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.75rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
@@ -68,6 +67,11 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
     .filter-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 500; }
     .filter-btn.active, .filter-btn:hover { background: #18181b; color: var(--text); border-color: var(--border-focus); }
     .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.15rem; margin-bottom: 0.85rem; }
+    .v-card { transition: border-color 0.15s ease; }
+    .v-card:hover { border-color: var(--border-focus); }
+    .notice-banner { border-radius: 8px; padding: 0.85rem 1.1rem; margin-bottom: 1.25rem; font-size: 0.875rem; line-height: 1.5; }
+    .notice-error { background: rgba(239, 68, 68, 0.12); border: 1px solid var(--critical); color: #fecaca; }
+    .notice-warn { background: rgba(234, 179, 8, 0.12); border: 1px solid var(--medium); color: #fef08a; }
     .badge { font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
     .badge-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
     .badge-high { background: rgba(249, 115, 22, 0.2); color: var(--high); border: 1px solid var(--high); }
@@ -100,11 +104,14 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
     <div class="target-box">
       <div class="target-row">
         <input type="text" id="targetDirInput" class="dir-input" value="${escapedDir}" placeholder="対象のフォルダまたはファイルパス..." onkeydown="if(event.key==='Enter') triggerScan()" />
-        <button class="btn" onclick="browseFolder()">📁 フォルダ選択</button>
-        <button class="btn" onclick="browseFile()">📄 ファイル選択</button>
+        <button id="browseFolderBtn" class="btn" onclick="browseFolder()">📁 フォルダ選択</button>
+        <button id="browseFileBtn" class="btn" onclick="browseFile()">📄 ファイル選択</button>
         <button id="scanBtn" class="btn btn-primary" onclick="triggerScan()">⚡ スキャン実行</button>
       </div>
     </div>
+
+    <div id="errorBanner" class="notice-banner notice-error" role="alert" style="display: none;"></div>
+    <div id="warnBanner" class="notice-banner notice-warn" role="status" style="display: none;"></div>
 
     <div class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('violations', this)">🔍 監査結果</button>
@@ -142,30 +149,103 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
   <script>
     let currentData = null;
 
+    function escapeHtmlClient(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function normalizeSeverity(sev) {
+      const s = String(sev || '').toLowerCase();
+      return ['critical', 'high', 'medium', 'low'].includes(s) ? s : 'low';
+    }
+
+    function showError(message) {
+      const el = document.getElementById('errorBanner');
+      el.textContent = message;
+      el.style.display = 'block';
+    }
+
+    function clearError() {
+      const el = document.getElementById('errorBanner');
+      el.textContent = '';
+      el.style.display = 'none';
+    }
+
+    function showWarning(message) {
+      const el = document.getElementById('warnBanner');
+      if (!message) {
+        el.textContent = '';
+        el.style.display = 'none';
+        return;
+      }
+      el.textContent = message;
+      el.style.display = 'block';
+    }
+
     async function browseFolder() {
-      const res = await fetch('/api/browse-folder', { method: 'POST' });
-      const data = await res.json();
-      if (data.path) {
-        document.getElementById('targetDirInput').value = data.path;
-        triggerScan();
+      const btn = document.getElementById('browseFolderBtn');
+      btn.disabled = true;
+      clearError();
+      try {
+        const res = await fetch('/api/browse-folder', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'フォルダ選択に失敗しました');
+        }
+        if (data.path) {
+          document.getElementById('targetDirInput').value = data.path;
+          await triggerScan();
+        }
+      } catch (err) {
+        showError('フォルダ選択に失敗しました: ' + err.message);
+      } finally {
+        btn.disabled = false;
       }
     }
 
     async function browseFile() {
-      const res = await fetch('/api/browse-file', { method: 'POST' });
-      const data = await res.json();
-      if (data.path) {
-        document.getElementById('targetDirInput').value = data.path;
-        triggerScan();
+      const btn = document.getElementById('browseFileBtn');
+      btn.disabled = true;
+      clearError();
+      try {
+        const res = await fetch('/api/browse-file', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'ファイル選択に失敗しました');
+        }
+        if (data.path) {
+          document.getElementById('targetDirInput').value = data.path;
+          await triggerScan();
+        }
+      } catch (err) {
+        showError('ファイル選択に失敗しました: ' + err.message);
+      } finally {
+        btn.disabled = false;
       }
     }
 
     async function loadData(targetDir) {
       const url = targetDir ? '/api/status?targetDir=' + encodeURIComponent(targetDir) : '/api/status';
       const res = await fetch(url);
-      currentData = await res.json();
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload.error || 'ステータス取得に失敗しました');
+      }
+      currentData = payload;
       if (currentData.targetDir && !document.getElementById('targetDirInput').value) {
         document.getElementById('targetDirInput').value = currentData.targetDir;
+      }
+      if (currentData.error) {
+        showError('スキャン取得エラー: ' + currentData.error);
+      }
+      if (currentData.skippedLogLines && currentData.skippedLogLines > 0) {
+        showWarning('監査ログ内の破損・不正な行を ' + Number(currentData.skippedLogLines) + ' 件スキップしました。');
+      } else {
+        showWarning('');
       }
       renderDashboard(currentData);
     }
@@ -174,57 +254,65 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
       const { current, history } = data;
       const s = current ? current.summary : { scannedFiles: 0, totalViolations: 0, critical: 0, high: 0, medium: 0, low: 0, passed: true };
       document.getElementById('statsGrid').innerHTML = \`
-        <div class="stat-card"><div class="stat-title">Files Scanned</div><div class="stat-value">\${s.scannedFiles}</div></div>
-        <div class="stat-card"><div class="stat-title">Total Violations</div><div class="stat-value">\${s.totalViolations}</div></div>
-        <div class="stat-card"><div class="stat-title">Critical</div><div class="stat-value" style="color:var(--critical)">\${s.critical}</div></div>
-        <div class="stat-card"><div class="stat-title">High</div><div class="stat-value" style="color:var(--high)">\${s.high}</div></div>
-        <div class="stat-card"><div class="stat-title">Medium</div><div class="stat-value" style="color:var(--medium)">\${s.medium}</div></div>
-        <div class="stat-card"><div class="stat-title">Low</div><div class="stat-value" style="color:var(--low)">\${s.low}</div></div>
+        <div class="stat-card"><div class="stat-title">Files Scanned</div><div class="stat-value">\${Number(s.scannedFiles) || 0}</div></div>
+        <div class="stat-card"><div class="stat-title">Total Violations</div><div class="stat-value">\${Number(s.totalViolations) || 0}</div></div>
+        <div class="stat-card"><div class="stat-title">Critical</div><div class="stat-value" style="color:var(--critical)">\${Number(s.critical) || 0}</div></div>
+        <div class="stat-card"><div class="stat-title">High</div><div class="stat-value" style="color:var(--high)">\${Number(s.high) || 0}</div></div>
+        <div class="stat-card"><div class="stat-title">Medium</div><div class="stat-value" style="color:var(--medium)">\${Number(s.medium) || 0}</div></div>
+        <div class="stat-card"><div class="stat-title">Low</div><div class="stat-value" style="color:var(--low)">\${Number(s.low) || 0}</div></div>
       \`;
 
       document.getElementById('controls').innerHTML = \`
-        <button class="filter-btn active" onclick="filterV('all', this)">All (\${s.totalViolations})</button>
-        <button class="filter-btn" onclick="filterV('critical', this)">Critical (\${s.critical})</button>
-        <button class="filter-btn" onclick="filterV('high', this)">High (\${s.high})</button>
-        <button class="filter-btn" onclick="filterV('medium', this)">Medium (\${s.medium})</button>
-        <button class="filter-btn" onclick="filterV('low', this)">Low (\${s.low})</button>
+        <button class="filter-btn active" onclick="filterV('all', this)">All (\${Number(s.totalViolations) || 0})</button>
+        <button class="filter-btn" onclick="filterV('critical', this)">Critical (\${Number(s.critical) || 0})</button>
+        <button class="filter-btn" onclick="filterV('high', this)">High (\${Number(s.high) || 0})</button>
+        <button class="filter-btn" onclick="filterV('medium', this)">Medium (\${Number(s.medium) || 0})</button>
+        <button class="filter-btn" onclick="filterV('low', this)">Low (\${Number(s.low) || 0})</button>
       \`;
 
       const list = document.getElementById('violationsList');
       if (!current || current.violations.length === 0) {
         list.innerHTML = '<div class="card" style="text-align:center; padding:3rem; color:var(--pass); font-weight:600;">🎉 違反は検知されませんでした。デプロイ準備完了です。</div>';
       } else {
-        list.innerHTML = current.violations.map(v => \`
-          <div class="card v-card" data-severity="\${v.severity}">
+        list.innerHTML = current.violations.map(v => {
+          const sev = normalizeSeverity(v.severity);
+          const colPart = v.column ? ':' + Number(v.column) : '';
+          return \`
+          <div class="card v-card" data-severity="\${sev}">
             <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.4rem;">
-              <span class="badge badge-\${v.severity}">\${v.severity.toUpperCase()}</span>
-              <strong>\${v.ruleId}</strong>
-              <span style="color:var(--text-muted); font-size:0.85rem;">\${v.ruleName}</span>
+              <span class="badge badge-\${sev}">\${sev.toUpperCase()}</span>
+              <strong>\${escapeHtmlClient(v.ruleId)}</strong>
+              <span style="color:var(--text-muted); font-size:0.85rem;">\${escapeHtmlClient(v.ruleName)}</span>
             </div>
-            <div class="loc-text">📁 \${v.filePath}:\${v.line}\${v.column ? ':' + v.column : ''}</div>
-            <div style="font-size:0.875rem; margin-bottom:0.4rem;">\${v.message}</div>
-            \${v.snippet ? \`<div class="code-box"><code>\${v.snippet}</code></div>\` : ''}
+            <div class="loc-text">📁 \${escapeHtmlClient(v.filePath)}:\${Number(v.line) || 0}\${colPart}</div>
+            <div style="font-size:0.875rem; margin-bottom:0.4rem;">\${escapeHtmlClient(v.message)}</div>
+            \${v.snippet ? \`<div class="code-box"><code>\${escapeHtmlClient(v.snippet)}</code></div>\` : ''}
           </div>
-        \`).join('');
+        \`;
+        }).join('');
       }
 
       const tbody = document.getElementById('historyTbody');
       if (!history || history.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted)">履歴はありません</td></tr>';
       } else {
-        tbody.innerHTML = [...history].reverse().map(h => \`
+        tbody.innerHTML = [...history].reverse().map(h => {
+          const hs = h.summary || {};
+          const commitShort = h.gitCommitHash ? escapeHtmlClient(String(h.gitCommitHash).substring(0, 7)) : '-';
+          return \`
           <tr>
-            <td>\${h.timestamp}</td>
+            <td>\${escapeHtmlClient(h.timestamp)}</td>
             <td><span class="status-badge \${h.passed ? 'status-pass' : 'status-fail'}">\${h.passed ? 'PASS' : 'FAIL'}</span></td>
-            <td><code>\${h.gitCommitHash ? h.gitCommitHash.substring(0, 7) : '-'}</code></td>
-            <td><strong>\${h.summary.totalViolations}</strong></td>
-            <td style="color:var(--critical)">\${h.summary.critical}</td>
-            <td style="color:var(--high)">\${h.summary.high}</td>
-            <td style="color:var(--medium)">\${h.summary.medium}</td>
-            <td style="color:var(--low)">\${h.summary.low}</td>
-            <td>\${h.summary.scannedFiles}</td>
+            <td><code>\${commitShort}</code></td>
+            <td><strong>\${Number(hs.totalViolations) || 0}</strong></td>
+            <td style="color:var(--critical)">\${Number(hs.critical) || 0}</td>
+            <td style="color:var(--high)">\${Number(hs.high) || 0}</td>
+            <td style="color:var(--medium)">\${Number(hs.medium) || 0}</td>
+            <td style="color:var(--low)">\${Number(hs.low) || 0}</td>
+            <td>\${Number(hs.scannedFiles) || 0}</td>
           </tr>
-        \`).join('');
+        \`;
+        }).join('');
       }
     }
 
@@ -248,6 +336,7 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
       const targetDir = document.getElementById('targetDirInput').value.trim();
       btn.disabled = true;
       btn.innerHTML = '<span class="loading-spin"></span>';
+      clearError();
       try {
         const res = await fetch('/api/scan', {
           method: 'POST',
@@ -255,19 +344,19 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
           body: JSON.stringify({ targetDir })
         });
         const data = await res.json();
-        if (!data.success) {
+        if (!res.ok || !data.success) {
           throw new Error(data.error || 'スキャンに失敗しました');
         }
         await loadData(targetDir);
       } catch (err) {
-        alert('スキャン実行に失敗しました: ' + err.message);
+        showError('スキャン実行に失敗しました: ' + err.message);
       } finally {
         btn.disabled = false;
         btn.innerHTML = '⚡ スキャン実行';
       }
     }
 
-    loadData();
+    loadData().catch(err => showError('初期データの読み込みに失敗しました: ' + err.message));
   </script>
 </body>
 </html>`;
