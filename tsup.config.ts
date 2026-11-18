@@ -8,4 +8,8 @@ export default defineConfig({
   sourcemap: true,
   target: "node18",
   shims: true,
+  noExternal: ["commander", "ignore", "picocolors", "zod"],
+  banner: {
+    js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+  },
 });
