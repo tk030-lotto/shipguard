@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { Command, CommanderError, InvalidArgumentError } from "commander";
 import { runHistory } from "./commands/history.js";
 import { runInit } from "./commands/init.js";
@@ -6,6 +7,16 @@ import { startUiServer } from "./commands/ui.js";
 import { validateReportOptions } from "./reporter/index.js";
 import { ALL_RULES } from "./rules/index.js";
 import type { ScanOptions } from "./types/index.js";
+
+function getCliVersion(): string {
+  try {
+    const pkgPath = new URL("../package.json", import.meta.url);
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
+    return pkg.version || "0.1.1";
+  } catch {
+    return "0.1.1";
+  }
+}
 
 function parsePositiveInt(value: string, label: string, max?: number): number {
   if (!/^\d+$/.test(value)) {
@@ -27,7 +38,7 @@ const program = new Command();
 program
   .name("shipguard")
   .description("個人開発者のための事前ローンチ・セキュリティ＆設定監査CLI")
-  .version("0.1.0")
+  .version(getCliVersion())
   .exitOverride()
   .allowExcessArguments(false);
 

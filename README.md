@@ -4,7 +4,7 @@
 > サーバー不要・外部費用0円・ローカル完結で、デプロイ直前の設定不備や秘密情報漏洩を検知します。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release: v0.1.0](https://img.shields.io/badge/release-v0.1.0-orange.svg)](https://github.com/tk030-lotto/shipguard/releases)
+[![Release: v0.1.1](https://img.shields.io/badge/release-v0.1.1-orange.svg)](https://github.com/tk030-lotto/shipguard/releases)
 
 ---
 
@@ -37,13 +37,15 @@
 `shipguard` は npm レジストリには公開していません（npm 上の同名パッケージは別プロジェクトです）。[GitHub Releases](https://github.com/tk030-lotto/shipguard/releases) からリリース版 zip をダウンロードして利用してください（必要環境: Node.js >= 18.0.0。展開先での `npm install` は不要です）。
 
 ```bash
-# 1. GitHub Releases から shipguard-v0.1.0.zip をダウンロードして展開
-unzip shipguard-v0.1.0.zip -d shipguard
+# 1. GitHub Releases から shipguard-v0.1.1.zip をダウンロードして展開
+unzip shipguard-v0.1.1.zip -d shipguard
 
 # 2. 監査したいプロジェクトのディレクトリで実行
 cd /path/to/your-project
 node /path/to/shipguard/bin/shipguard.js scan
 ```
+
+> Windows で展開後に `shipguard-ui.bat` を起動する際、「発行元を確認できませんでした」というセキュリティ警告が表示される場合は「実行」を押してください。ファイルのプロパティで「ブロックの解除」を行うと、以降は表示されなくなります。
 
 ソースからビルドして利用する場合:
 
@@ -114,7 +116,7 @@ node /path/to/shipguard/bin/shipguard.js scan --show-secrets
 画面上部からスキャン対象プロジェクトフォルダや単一ファイルを切り替えて監査できます。
 
 #### 方法A: ワンクリック起動（Windows / ターミナル操作不要）
-展開フォルダ直下の `shipguard-ui.bat` をダブルクリックすると、ブラウザでダッシュボードが立ち上がります。
+展開フォルダ直下の `shipguard-ui.bat` をダブルクリックすると、ブラウザでダッシュボードが立ち上がります。「発行元を確認できませんでした」という警告が表示される場合は「実行」を押してください。ファイルのプロパティで「ブロックの解除」を行うと表示されなくなります。
 
 #### 方法B: コマンドラインから起動
 ```bash
@@ -195,7 +197,7 @@ jobs:
           node-version: 20
       - name: Download shipguard release
         run: |
-          curl -fsSL -o /tmp/shipguard.zip https://github.com/tk030-lotto/shipguard/releases/download/v0.1.0/shipguard-v0.1.0.zip
+          curl -fsSL -o /tmp/shipguard.zip https://github.com/tk030-lotto/shipguard/releases/download/v0.1.1/shipguard-v0.1.1.zip
           unzip -q /tmp/shipguard.zip -d /tmp/shipguard
       - name: Run shipguard scan
         run: node /tmp/shipguard/bin/shipguard.js scan --strict
