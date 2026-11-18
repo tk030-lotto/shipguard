@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { Rule, ScanContext, Violation } from "../types/index.js";
 
 interface SecretPattern {
@@ -5,6 +6,27 @@ interface SecretPattern {
   regex: RegExp;
   message: string;
 }
+
+const KNOWN_CONCAT_PREFIXES = [
+  "sk_live_",
+  "rk_live_",
+  "sk-proj-",
+  "ghp_",
+  "github_pat_",
+  "AKIA",
+  "xoxb-",
+  "AIzaSy",
+];
+
+const TEMPLATE_SECRET_REGEX = new RegExp(
+  `\`([^\`\\r\\n]*\\b(${KNOWN_CONCAT_PREFIXES.join("|")})[^\`\\r\\n]*\\$\\{[^\`\\r\\n]*)\``,
+  "g"
+);
+const STRING_CONCAT_EXPR_REGEX =
+  /(?:(["'])(?:(?!\1)[^\\\r\n]|\\.)*\1\s*\+\s*)+(["'])(?:(?!\2)[^\\\r\n]|\\.)*\2/g;
+const ARRAY_JOIN_EXPR_REGEX =
+  /\[\s*(?:(["'])(?:(?!\1)[^\\\r\n]|\\.)*\1\s*,\s*)*(["'])(?:(?!\2)[^\\\r\n]|\\.)*\2\s*,?\s*\]\s*\.\s*join\s*\(\s*(["'])\3\s*\)/g;
+const QUOTED_LITERAL_REGEX = /(["'])((?:(?!\1)[^\\\r\n]|\\.)*)\1/g;
 
 const SECRET_PATTERNS: SecretPattern[] = [
   {
@@ -66,6 +88,23 @@ function maskSecret(secret: string): string {
   return `${prefix}...${suffix}`;
 }
 
+function isPlaceholderSecret(matchedString: string): boolean {
+  return (
+    /^(.)\1+$/.test(matchedString) ||
+    /your_?key|sample|dummy|placeholder|example|test/i.test(matchedString)
+  );
+}
+
+function extractJoinedLiterals(expr: string): string {
+  QUOTED_LITERAL_REGEX.lastIndex = 0;
+  let joined = "";
+  let m: RegExpExecArray | null;
+  while ((m = QUOTED_LITERAL_REGEX.exec(expr)) !== null) {
+    joined += m[2];
+  }
+  return joined;
+}
+
 export const secretsRule: Rule = {
   id: "SEC-001",
   name: "ハードコードシークレット検知",
@@ -75,45 +114,102 @@ export const secretsRule: Rule = {
     const violations: Violation[] = [];
 
     for (const file of context.files) {
-      // .env.example や .env.template、.shipguard 関連は通常サンプル値のため特定条件以外は除外
+      const baseName = path.posix.basename(file.path.replace(/\\/g, "/"));
       const isExampleEnv =
         file.path.endsWith(".example") ||
         file.path.endsWith(".sample") ||
         file.path.endsWith(".template");
+      const isRealEnv =
+        (baseName === ".env" || baseName.startsWith(".env.")) && !isExampleEnv;
+
+      // .env / .env.local 等の実環境変数ファイルは秘密鍵の正規配置先のため SEC-001 対象外
+      if (isRealEnv) {
+        continue;
+      }
 
       const lines = file.content.split(/\r?\n/);
 
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
         const lineContent = lines[lineIndex];
         const lineMatches: Array<{
-          pattern: SecretPattern;
+          patternName: string;
+          message: string;
           matchedString: string;
+          rawExpr: string;
           colNum: number;
         }> = [];
 
+        // 1. 通常の単一リテラル検知
         for (const pattern of SECRET_PATTERNS) {
-          // regexのlastIndexをリセットして走査
           pattern.regex.lastIndex = 0;
           let match: RegExpExecArray | null;
 
           while ((match = pattern.regex.exec(lineContent)) !== null) {
             const matchedString = match[1] ?? match[0];
-
-            // プレースホルダーの除外（例: your_key_here, 00000000, xxxxxxxx）
-            const isPlaceholder =
-              /^(.)\1+$/.test(matchedString) ||
-              /your_?key|sample|dummy|placeholder|example|test/i.test(matchedString);
-
-            if (isExampleEnv && isPlaceholder) {
+            if (isExampleEnv && isPlaceholderSecret(matchedString)) {
               continue;
             }
-
             lineMatches.push({
-              pattern,
+              patternName: pattern.name,
+              message: pattern.message,
               matchedString,
+              rawExpr: matchedString,
               colNum: match.index + 1,
             });
           }
+        }
+
+        // 2. 文字列連結 / 配列 join による断片組み立ての検知
+        for (const exprRegex of [STRING_CONCAT_EXPR_REGEX, ARRAY_JOIN_EXPR_REGEX]) {
+          exprRegex.lastIndex = 0;
+          let exprMatch: RegExpExecArray | null;
+          while ((exprMatch = exprRegex.exec(lineContent)) !== null) {
+            const rawExpr = exprMatch[0];
+            const joined = extractJoinedLiterals(rawExpr);
+            for (const pattern of SECRET_PATTERNS) {
+              pattern.regex.lastIndex = 0;
+              const pMatch = pattern.regex.exec(joined);
+              if (pMatch) {
+                const matchedString = pMatch[1] ?? pMatch[0];
+                if (isExampleEnv && isPlaceholderSecret(matchedString)) {
+                  continue;
+                }
+                const colNum = exprMatch.index + 1;
+                // 同一位置の単一リテラルと重複しない場合のみ追加
+                const alreadyRecorded = lineMatches.some(
+                  (existing) => existing.colNum === colNum && existing.patternName === pattern.name
+                );
+                if (!alreadyRecorded) {
+                  lineMatches.push({
+                    patternName: pattern.name,
+                    message: `${pattern.message}（組み立て式を検知）`,
+                    matchedString,
+                    rawExpr,
+                    colNum,
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        // 3. テンプレートリテラル内の既知プレフィックス検知 (`sk_live_${...}` 等)
+        TEMPLATE_SECRET_REGEX.lastIndex = 0;
+        let tmplMatch: RegExpExecArray | null;
+        while ((tmplMatch = TEMPLATE_SECRET_REGEX.exec(lineContent)) !== null) {
+          const rawExpr = tmplMatch[0];
+          const inner = tmplMatch[1];
+          const prefix = tmplMatch[2];
+          if (isExampleEnv && isPlaceholderSecret(inner)) {
+            continue;
+          }
+          lineMatches.push({
+            patternName: `Secret Template (${prefix}...)`,
+            message: `既知の秘密鍵プレフィックス '${prefix}' を含むテンプレートリテラルが記述されています`,
+            matchedString: inner,
+            rawExpr,
+            colNum: tmplMatch.index + 1,
+          });
         }
 
         if (lineMatches.length === 0) {
@@ -124,7 +220,11 @@ export const secretsRule: Rule = {
         let displaySnippet = rawSnippet;
         if (!context.showSecrets) {
           for (const m of lineMatches) {
-            displaySnippet = displaySnippet.split(m.matchedString).join(maskSecret(m.matchedString));
+            const replacement = maskSecret(m.matchedString);
+            displaySnippet = displaySnippet.split(m.rawExpr).join(replacement);
+            if (m.rawExpr !== m.matchedString) {
+              displaySnippet = displaySnippet.split(m.matchedString).join(replacement);
+            }
           }
         }
 
@@ -137,7 +237,7 @@ export const secretsRule: Rule = {
             filePath: file.path,
             line: lineNum,
             column: m.colNum,
-            message: `${m.pattern.message} (${m.pattern.name}: ${masked})`,
+            message: `${m.message} (${m.patternName}: ${masked})`,
             snippet: displaySnippet,
             severity: secretsRule.defaultSeverity,
           });

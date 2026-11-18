@@ -10,8 +10,8 @@ const PUBLIC_PREFIXES = [
   "EXPO_PUBLIC_",
 ];
 
-// 秘密情報を示唆するキーワード
-const SENSITIVE_KEYWORDS = [
+// 強い秘密情報を示唆するキーワード（安全語が含まれていても優先して検知）
+const STRONG_SENSITIVE_KEYWORDS = [
   "SECRET",
   "PRIVATE",
   "PASSWORD",
@@ -20,6 +20,8 @@ const SENSITIVE_KEYWORDS = [
   "ADMIN_KEY",
   "DATABASE_URL",
   "DB_PASS",
+  "TOKEN",
+  "API_KEY",
 ];
 
 // 公開が意図されているホワイトリストキーワード
@@ -28,6 +30,24 @@ const SAFE_KEYWORDS = [
   "ANON",
   "PUBLIC_KEY",
 ];
+
+// 汎用キーワード（安全語に該当しない場合のみ検知）
+const GENERIC_SENSITIVE_KEYWORDS = [
+  "KEY",
+];
+
+/**
+ * 変数名が公開プレフィックス下で危険とみなされるか判定する（危険語を安全語より先に評価）
+ */
+function isSensitivePublicVar(upperName: string): boolean {
+  if (STRONG_SENSITIVE_KEYWORDS.some((kw) => upperName.includes(kw))) {
+    return true;
+  }
+  if (SAFE_KEYWORDS.some((safe) => upperName.includes(safe))) {
+    return false;
+  }
+  return GENERIC_SENSITIVE_KEYWORDS.some((kw) => upperName.includes(kw));
+}
 
 /**
  * 環境変数ファイルから KEY=VALUE のキー名を抽出する
@@ -87,6 +107,46 @@ export const clientEnvSecretsRule: Rule = {
 
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
         const lineContent = lines[lineIndex];
+        const trimmed = lineContent.trim();
+
+        if (!trimmed) {
+          continue;
+        }
+
+        if (isEnvFile) {
+          // .env ファイルはコメント行を除外し、行頭の代入形式 (NAME=value) のみ検査する
+          if (trimmed.startsWith("#")) {
+            continue;
+          }
+          const assignMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+          if (!assignMatch) {
+            continue;
+          }
+          const varName = assignMatch[1];
+          const matchedPrefix = PUBLIC_PREFIXES.find((prefix) => varName.startsWith(prefix));
+          if (!matchedPrefix) {
+            continue;
+          }
+          if (isSensitivePublicVar(varName.toUpperCase())) {
+            const colIndex = lineContent.indexOf(varName);
+            violations.push({
+              ruleId: clientEnvSecretsRule.id,
+              ruleName: clientEnvSecretsRule.name,
+              filePath: file.path,
+              line: lineIndex + 1,
+              column: colIndex >= 0 ? colIndex + 1 : 1,
+              message: `公開環境変数プレフィックス '${matchedPrefix}' が付与された変数 '${varName}' に秘密情報が含まれている可能性があります`,
+              snippet: trimmed,
+              severity: clientEnvSecretsRule.defaultSeverity,
+            });
+          }
+          continue;
+        }
+
+        // ソースコード行のコメントは対象外
+        if (trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*")) {
+          continue;
+        }
 
         for (const prefix of PUBLIC_PREFIXES) {
           const regex = new RegExp(`\\b(${prefix}[A-Za-z0-9_]+)\\b`, "g");
@@ -96,15 +156,7 @@ export const clientEnvSecretsRule: Rule = {
             const varName = match[1];
             const upperName = varName.toUpperCase();
 
-            // ホワイトリストチェック（ANONやPUBLISHABLEが含まれていれば安全と判定）
-            const isSafe = SAFE_KEYWORDS.some((safe) => upperName.includes(safe));
-            if (isSafe) {
-              continue;
-            }
-
-            // 危険キーワードチェック
-            const isSensitive = SENSITIVE_KEYWORDS.some((kw) => upperName.includes(kw));
-            if (isSensitive) {
+            if (isSensitivePublicVar(upperName)) {
               violations.push({
                 ruleId: clientEnvSecretsRule.id,
                 ruleName: clientEnvSecretsRule.name,
@@ -112,7 +164,7 @@ export const clientEnvSecretsRule: Rule = {
                 line: lineIndex + 1,
                 column: match.index + 1,
                 message: `公開環境変数プレフィックス '${prefix}' が付与された変数 '${varName}' に秘密情報が含まれている可能性があります`,
-                snippet: lineContent.trim(),
+                snippet: trimmed,
                 severity: clientEnvSecretsRule.defaultSeverity,
               });
             }

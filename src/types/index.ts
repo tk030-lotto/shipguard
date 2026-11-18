@@ -68,6 +68,7 @@ export interface ScanResult {
   gitCommitHash?: string;
   summary: ScanSummary;
   violations: Violation[];
+  notices?: string[];
 }
 
 export interface AuditLogRecord {

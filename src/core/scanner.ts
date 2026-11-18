@@ -65,25 +65,18 @@ const TARGET_FILENAMES = [
 ];
 
 /**
- * .gitignore ファイルを読み込み、ignore インスタンスと否定パターンの有無を返す
+ * .gitignore ファイルを読み込み、ignore インスタンスを返す
  */
-async function loadGitignore(rootDir: string): Promise<{ ig: Ignore; hasNegation: boolean }> {
+async function loadGitignore(rootDir: string): Promise<Ignore> {
   const ig = (createIgnore as unknown as () => Ignore)();
-  let hasNegation = false;
   const gitignorePath = path.join(rootDir, ".gitignore");
   try {
     const content = await fs.readFile(gitignorePath, "utf-8");
     ig.add(content);
-    hasNegation = content
-      .split(/\r?\n/)
-      .some((line) => {
-        const trimmed = line.trim();
-        return trimmed.length > 0 && !trimmed.startsWith("#") && trimmed.startsWith("!");
-      });
   } catch {
     // .gitignore が存在しない場合は無視
   }
-  return { ig, hasNegation };
+  return ig;
 }
 
 /**
@@ -101,13 +94,20 @@ function createDefaultIgnore(): Ignore {
 }
 
 /**
+ * ファイル名が .env または .env. で始まる環境変数ファイルか判定する
+ */
+function isEnvFilename(baseName: string): boolean {
+  return baseName === ".env" || baseName.startsWith(".env.");
+}
+
+/**
  * ディレクトリ配下を再帰的に走査して相対POSIXパス一覧を収集する（シンボリックリンク非追従）
  */
 async function walkDirectory(
   rootDir: string,
   defaultIg: Ignore,
-  userIg: Ignore,
-  canPruneUserDirs: boolean
+  customIg: Ignore,
+  canPruneCustomDirs: boolean
 ): Promise<string[]> {
   const collected: string[] = [];
 
@@ -117,7 +117,10 @@ async function walkDirectory(
       entries = await fs.readdir(currentAbsDir, { withFileTypes: true });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.warn(`[shipguard] skip dir: ${currentRelPosix || "."} (read error: ${msg})`);
+      if (!currentRelPosix) {
+        throw new Error(`ルートディレクトリの読み取りに失敗しました: ${rootDir} (${msg})`);
+      }
+      console.warn(`[shipguard] skip dir: ${currentRelPosix} (read error: ${msg})`);
       return;
     }
 
@@ -136,7 +139,7 @@ async function walkDirectory(
         if (defaultIg.ignores(`${relPosix}/`)) {
           continue;
         }
-        if (canPruneUserDirs && userIg.ignores(`${relPosix}/`)) {
+        if (canPruneCustomDirs && customIg.ignores(`${relPosix}/`)) {
           continue;
         }
         await walk(absPath, relPosix);
@@ -158,7 +161,7 @@ async function walkDirectory(
  */
 function isTargetFile(relativePosixPath: string): boolean {
   const baseName = path.posix.basename(relativePosixPath);
-  if (TARGET_FILENAMES.includes(baseName) || baseName.startsWith(".env.")) {
+  if (TARGET_FILENAMES.includes(baseName) || isEnvFilename(baseName)) {
     return true;
   }
   const ext = path.posix.extname(relativePosixPath).toLowerCase();
@@ -209,20 +212,25 @@ export async function collectFiles(
     throw new Error(`スキャン対象がファイルまたはディレクトリではありません: ${rootDir}`);
   }
 
-  const { ig, hasNegation } = await loadGitignore(rootDir);
+  const gitignoreIg = await loadGitignore(rootDir);
+  const customIg = (createIgnore as unknown as () => Ignore)();
   let hasCustomNegation = false;
   if (customIgnore.length > 0) {
-    ig.add(customIgnore);
+    customIg.add(customIgnore);
     hasCustomNegation = customIgnore.some((p) => p.trim().startsWith("!"));
   }
 
   const defaultIg = createDefaultIgnore();
-  const canPruneUserDirs = !hasNegation && !hasCustomNegation;
-  const allRelativePaths = await walkDirectory(rootDir, defaultIg, ig, canPruneUserDirs);
+  const canPruneCustomDirs = !hasCustomNegation;
+  const allRelativePaths = await walkDirectory(rootDir, defaultIg, customIg, canPruneCustomDirs);
 
   const targetPaths = allRelativePaths.filter((relPath) => {
-    // ignore によるチェック（相対パス）
-    if (ig.ignores(relPath)) {
+    if (customIg.ignores(relPath)) {
+      return false;
+    }
+    const baseName = path.posix.basename(relPath);
+    // .env および .env.* は .gitignore で除外されていても検査対象として収集する
+    if (!isEnvFilename(baseName) && gitignoreIg.ignores(relPath)) {
       return false;
     }
     return isTargetFile(relPath);
