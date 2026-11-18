@@ -118,6 +118,7 @@ export function formatHtmlReport(result: ScanResult): string {
     .msg-text { font-size: 0.875rem; color: var(--text); line-height: 1.5; margin-bottom: 0.5rem; }
     .code-box { background: #09090b; border: 1px solid var(--border); border-radius: 6px; padding: 0.7rem 0.9rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #f87171; overflow-x: auto; }
     .no-violations { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 3rem; text-align: center; color: var(--pass); font-size: 1rem; font-weight: 600; }
+    .notice-box { background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 0.85rem 1.1rem; margin-bottom: 1.25rem; color: #fef08a; font-size: 0.85rem; }
     footer { text-align: center; margin-top: 2.5rem; color: var(--text-muted); font-size: 0.8rem; }
     footer a { color: var(--accent); text-decoration: none; }
   </style>
@@ -169,6 +170,12 @@ export function formatHtmlReport(result: ScanResult): string {
       <button class="filter-btn" onclick="filterViolations('medium', this)">Medium (${summary.medium})</button>
       <button class="filter-btn" onclick="filterViolations('low', this)">Low (${summary.low})</button>
     </div>
+
+    ${
+      result.notices && result.notices.length > 0
+        ? `<div class="notice-box">${result.notices.map((n) => `<div>ℹ ${escapeHtml(n)}</div>`).join("")}</div>`
+        : ""
+    }
 
     <div class="violations-list" id="violationsList">
       ${violationsHtml}

@@ -24,11 +24,29 @@ export const LoggingConfigSchema = z
   })
   .strict();
 
+export const KNOWN_RULE_IDS = [
+  "SEC-001",
+  "SEC-002",
+  "SEC-003",
+  "SEC-004",
+  "CFG-001",
+] as const;
+
+export const RulesConfigSchema = z
+  .object({
+    "SEC-001": RuleSeverityConfigSchema.optional(),
+    "SEC-002": RuleSeverityConfigSchema.optional(),
+    "SEC-003": RuleSeverityConfigSchema.optional(),
+    "SEC-004": RuleSeverityConfigSchema.optional(),
+    "CFG-001": RuleSeverityConfigSchema.optional(),
+  })
+  .strict();
+
 export const ShipguardConfigSchema = z
   .object({
     $schema: z.string().optional(),
     ignore: z.array(z.string()).optional().default([]),
-    rules: z.record(z.string(), RuleSeverityConfigSchema).optional().default({
+    rules: RulesConfigSchema.optional().default({
       "SEC-001": "critical",
       "SEC-002": "high",
       "SEC-003": "high",

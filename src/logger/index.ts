@@ -1,4 +1,5 @@
 import { exec } from "node:child_process";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -7,7 +8,27 @@ import type { AuditLogReadResult, AuditLogRecord, ScanResult, ShipguardConfig } 
 const execAsync = promisify(exec);
 
 /**
- * ログファイルのパスが rootDir の内側に収まることを検証して絶対パスを返す
+ * パスのうち存在する最も深い祖先の実パス (realpath) を使って実体パスを解決する
+ */
+function resolveRealPathWithExistingAncestor(targetPath: string): string {
+  const segments: string[] = [];
+  let current = path.resolve(targetPath);
+
+  while (!fsSync.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(targetPath);
+    }
+    segments.unshift(path.basename(current));
+    current = parent;
+  }
+
+  const realBase = fsSync.realpathSync(current);
+  return segments.length > 0 ? path.resolve(realBase, ...segments) : realBase;
+}
+
+/**
+ * ログファイルのパスが字句上および実パス（realpath）上の両方で rootDir の内側に収まることを検証して絶対パスを返す
  */
 export function resolveSafeLogPath(
   rootDir: string,
@@ -22,6 +43,17 @@ export function resolveSafeLogPath(
   if (!rel || rel === "." || rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error(`logging.path が対象ディレクトリの外を指しています: ${logRelativePath}`);
   }
+
+  // シンボリックリンク / ジャンクション経由で外側へ抜ける経路を実パスで拒否
+  const realRoot = resolveRealPathWithExistingAncestor(resolvedRoot);
+  const realLog = resolveRealPathWithExistingAncestor(resolvedLog);
+  const realRel = path.relative(realRoot, realLog);
+  if (!realRel || realRel === "." || realRel.startsWith("..") || path.isAbsolute(realRel)) {
+    throw new Error(
+      `logging.path の実パスが対象ディレクトリの外を指しています: ${logRelativePath}`
+    );
+  }
+
   return resolvedLog;
 }
 

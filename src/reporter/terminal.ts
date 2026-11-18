@@ -50,6 +50,13 @@ export function printScanReport(result: ScanResult): void {
   );
   console.log("");
 
+  if (result.notices && result.notices.length > 0) {
+    for (const notice of result.notices) {
+      console.log(pc.yellow(`  ℹ ${notice}`));
+    }
+    console.log("");
+  }
+
   if (result.summary.passed) {
     console.log(pc.bold(pc.green("  [PASS] 監査合格 - 致命的な問題はありません")));
   } else {

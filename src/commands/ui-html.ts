@@ -242,11 +242,16 @@ export function getDashboardHtml(initialTargetDir: string = ""): string {
       if (currentData.error) {
         showError('スキャン取得エラー: ' + currentData.error);
       }
+      const warnings = [];
       if (currentData.skippedLogLines && currentData.skippedLogLines > 0) {
-        showWarning('監査ログ内の破損・不正な行を ' + Number(currentData.skippedLogLines) + ' 件スキップしました。');
-      } else {
-        showWarning('');
+        warnings.push('監査ログ内の破損・不正な行を ' + Number(currentData.skippedLogLines) + ' 件スキップしました。');
       }
+      if (currentData.current && Array.isArray(currentData.current.notices)) {
+        for (const notice of currentData.current.notices) {
+          warnings.push(String(notice));
+        }
+      }
+      showWarning(warnings.join(' / '));
       renderDashboard(currentData);
     }
 

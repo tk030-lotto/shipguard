@@ -39,10 +39,7 @@
           "enum": ["critical", "high", "medium", "low", "off"]
         }
       },
-      "additionalProperties": {
-        "type": "string",
-        "enum": ["critical", "high", "medium", "low", "off"]
-      },
+      "additionalProperties": false,
       "description": "Severity override for rules"
     },
     "database": {

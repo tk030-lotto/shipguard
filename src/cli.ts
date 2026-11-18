@@ -1,26 +1,44 @@
-import { Command } from "commander";
+import { Command, CommanderError, InvalidArgumentError } from "commander";
 import { runHistory } from "./commands/history.js";
 import { runInit } from "./commands/init.js";
 import { runScan } from "./commands/scan.js";
 import { startUiServer } from "./commands/ui.js";
-import { VALID_REPORT_FORMATS } from "./reporter/index.js";
+import { validateReportOptions } from "./reporter/index.js";
 import { ALL_RULES } from "./rules/index.js";
 import type { ScanOptions } from "./types/index.js";
+
+function parsePositiveInt(value: string, label: string, max?: number): number {
+  if (!/^\d+$/.test(value)) {
+    throw new InvalidArgumentError(`${label} には正の整数を指定してください: ${value}`);
+  }
+  const num = Number(value);
+  if (!Number.isSafeInteger(num) || num <= 0 || (max !== undefined && num > max)) {
+    throw new InvalidArgumentError(
+      max !== undefined
+        ? `${label} は 1〜${max} の整数で指定してください: ${value}`
+        : `${label} には1以上の整数を指定してください: ${value}`
+    );
+  }
+  return num;
+}
 
 const program = new Command();
 
 program
   .name("shipguard")
   .description("個人開発者のための事前ローンチ・セキュリティ＆設定監査CLI")
-  .version("0.1.0");
+  .version("0.1.0")
+  .exitOverride()
+  .allowExcessArguments(false);
 
 const scanCommand = program
   .command("scan", { isDefault: true })
   .description("プロジェクトを走査し、セキュリティ・設定不備を監査します")
+  .allowExcessArguments(false)
   .option("-s, --strict", "critical/high に加え medium/low を含むすべての違反で終了コード1を返します")
   .option("-f, --format <format>", "出力形式を指定します (terminal, markdown, json, html)", "terminal")
   .option("-o, --output <path>", "レポート出力先ファイルパスを指定します")
-  .option("--open", "スキャン完了後にレポートをブラウザで開きます")
+  .option("--open", "スキャン完了後にレポートをブラウザで開きます (--format html 時のみ有効)")
   .option("-i, --ignore <patterns...>", "監査対象外とするGlobパターンを指定します")
   .option("--show-secrets", "検知された秘密情報の原文をスニペットに表示します（既定はマスク表示）")
   .action(
@@ -33,15 +51,6 @@ const scanCommand = program
       showSecrets?: boolean;
     }) => {
       try {
-        if (
-          cmdOptions.format !== undefined &&
-          !VALID_REPORT_FORMATS.includes(cmdOptions.format as any)
-        ) {
-          throw new Error(
-            `不明な出力形式が指定されました: ${cmdOptions.format} (指定可能: ${VALID_REPORT_FORMATS.join(", ")})`
-          );
-        }
-
         const options: ScanOptions = {
           strict: Boolean(cmdOptions.strict),
           format: cmdOptions.format as ScanOptions["format"],
@@ -51,14 +60,14 @@ const scanCommand = program
           showSecrets: Boolean(cmdOptions.showSecrets),
         };
 
+        validateReportOptions(options);
         const result = await runScan(options);
 
         // process.exit() の代わりに exitCode を設定して自然終了させる
-        // （テスト時に process.exit() がプロセスを強制終了しないよう考慮）
         process.exitCode = result.summary.passed ? 0 : 1;
       } catch (error) {
         console.error("エラーが発生しました:", error);
-        process.exit(2);
+        process.exitCode = 2;
       }
     }
   );
@@ -75,46 +84,56 @@ scanCommand.addHelpText(
 program
   .command("ui")
   .description("ローカルWeb UIダッシュボードを起動します")
-  .option("-p, --port <number>", "サーバーのポート番号", (v) => parseInt(v, 10), 3773)
+  .allowExcessArguments(false)
+  .option("-p, --port <number>", "サーバーのポート番号", (v) => parsePositiveInt(v, "port", 65535))
   .option("--no-open", "起動時にブラウザを自動で開かない")
   .action(async (options: { port?: number; open?: boolean }) => {
     try {
       await startUiServer({ port: options.port, open: options.open });
     } catch (error) {
       console.error("UIサーバーの起動に失敗しました:", error);
-      process.exit(2);
+      process.exitCode = 2;
     }
   });
 
 program
   .command("init")
   .description(".shipguardrc.json 設定ファイルを生成します")
+  .allowExcessArguments(false)
   .option("--force", "既存ファイルがある場合も強制的に上書きします")
   .action(async (options: { force?: boolean }) => {
     try {
       await runInit({ force: options.force });
-      process.exit(0);
+      process.exitCode = 0;
     } catch (error) {
       console.error("エラーが発生しました:", error);
-      process.exit(2);
+      process.exitCode = 2;
     }
   });
 
 program
   .command("history")
   .description("過去のスキャン実行ログを一覧表示します")
-  .option("-n, --limit <number>", "表示する最新ログ件数", (v) => parseInt(v, 10), 10)
+  .allowExcessArguments(false)
+  .option("-n, --limit <number>", "表示する最新ログ件数", (v) => parsePositiveInt(v, "limit"), 10)
   .option("--clear", "監査履歴ログを削除します")
   .action(async (options: { limit?: number; clear?: boolean }) => {
     try {
       await runHistory({ limit: options.limit, clear: options.clear });
-      process.exit(0);
+      process.exitCode = 0;
     } catch (error) {
       console.error("エラーが発生しました:", error);
-      process.exit(2);
+      process.exitCode = 2;
     }
   });
 
 export function runCLI(): void {
-  program.parse(process.argv);
+  program.parseAsync(process.argv).catch((error: unknown) => {
+    if (error instanceof CommanderError) {
+      process.exitCode = error.exitCode === 0 ? 0 : 2;
+      return;
+    }
+    console.error("エラーが発生しました:", error);
+    process.exitCode = 2;
+  });
 }

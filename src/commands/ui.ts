@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import pc from "picocolors";
@@ -18,6 +19,15 @@ export interface UiOptions {
 class BadRequestError extends Error {}
 
 /**
+ * エラーメッセージからローカル環境の絶対パス表現を除去する
+ */
+function sanitizeUiErrorMessage(rawMessage: string): string {
+  return rawMessage
+    .replace(/[A-Za-z]:\\(?:[^\\/:*?"<>|\r\n'"]|\\)+/g, (m) => path.basename(m) || "[path]")
+    .replace(/(?:\/[A-Za-z0-9._-]+){2,}/g, (m) => path.basename(m) || "[path]");
+}
+
+/**
  * ターゲットパスがベースディレクトリの範囲内か判定する
  */
 function isPathWithin(baseDir: string, targetPath: string): boolean {
@@ -28,14 +38,24 @@ function isPathWithin(baseDir: string, targetPath: string): boolean {
 }
 
 /**
- * Host / Origin ヘッダがローカルループバックに限定されているか検証する
+ * Host / Origin ヘッダがローカルループバックかつ実ポートに一致しているか検証する
  */
 function isLocalRequestAllowed(req: http.IncomingMessage, actualPort: number | null): boolean {
   const hostHeader = req.headers.host;
   if (hostHeader) {
-    const hostname = hostHeader.replace(/:\d+$/, "").toLowerCase();
+    const hostMatch = hostHeader.match(/^([^:\[\]]+)(?::(\d+))?$/);
+    if (!hostMatch) {
+      return false;
+    }
+    const hostname = hostMatch[1].toLowerCase();
+    const portStr = hostMatch[2];
     if (hostname !== "127.0.0.1" && hostname !== "localhost") {
       return false;
+    }
+    if (actualPort !== null) {
+      if (!portStr || Number(portStr) !== actualPort) {
+        return false;
+      }
     }
   }
 
@@ -93,6 +113,7 @@ export async function startUiServer(
 ): Promise<{ server: http.Server; port: number; url: string }> {
   const defaultRootDir = path.resolve(options.cwd ?? process.cwd());
   let currentTargetDir = defaultRootDir;
+  let latestTargetDir = defaultRootDir;
   let latestResult: ScanResult | null = null;
   let initialScanError: string | null = null;
   let isScanning = false;
@@ -101,9 +122,10 @@ export async function startUiServer(
   // 初回スキャンを実行して最新状態を準備（起動時の自動スキャンは監査ログに追記しない）
   try {
     latestResult = await runScan({ cwd: defaultRootDir, format: "terminal", skipAuditLog: true });
+    latestTargetDir = defaultRootDir;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    initialScanError = msg;
+    initialScanError = sanitizeUiErrorMessage(msg);
     console.warn(pc.yellow(`  [UI] 初回スキャンの取得に失敗しました: ${msg}`));
   }
 
@@ -134,11 +156,11 @@ export async function startUiServer(
           return;
         }
 
-        const targetDir = queryDir ? path.resolve(queryDir) : currentTargetDir;
+        const targetPath = queryDir ? path.resolve(queryDir) : currentTargetDir;
         if (
           queryDir &&
-          !isPathWithin(defaultRootDir, targetDir) &&
-          !isPathWithin(currentTargetDir, targetDir)
+          !isPathWithin(defaultRootDir, targetPath) &&
+          !isPathWithin(currentTargetDir, targetPath)
         ) {
           res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
           res.end(
@@ -149,30 +171,37 @@ export async function startUiServer(
           return;
         }
 
-        const config = await loadConfig(targetDir);
+        let logBaseDir = targetPath;
+        const targetStat = await fs.stat(targetPath);
+        if (targetStat.isFile()) {
+          logBaseDir = path.dirname(targetPath);
+        }
+
+        const config = await loadConfig(logBaseDir);
         const logRelativePath = config.logging?.path || ".shipguard/audit.log";
-        const logFilePath = resolveSafeLogPath(targetDir, logRelativePath);
+        const logFilePath = resolveSafeLogPath(logBaseDir, logRelativePath);
         const { records: history, skippedLines } = await readAuditLogsDetailed(logFilePath);
 
+        const isSameAsLatest = path.resolve(targetPath) === path.resolve(latestTargetDir);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(
           JSON.stringify({
-            targetDir,
-            current: latestResult,
+            targetDir: targetPath,
+            current: isSameAsLatest ? latestResult : null,
             history,
             skippedLogLines: skippedLines,
-            error: initialScanError,
+            error: isSameAsLatest ? initialScanError : null,
           })
         );
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: msg }));
+        res.end(JSON.stringify({ error: sanitizeUiErrorMessage(msg) }));
       }
       return;
     }
 
-    // 3. 再スキャン実行 API (任意のディレクトリ指定に対応・二重実行ガード付き)
+    // 3. 再スキャン実行 API (任意のディレクトリ/ファイル指定に対応・二重実行ガード付き)
     if (req.method === "POST" && pathname === "/api/scan") {
       if (isScanning) {
         res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
@@ -212,6 +241,7 @@ export async function startUiServer(
         const result = await runScan({ cwd: targetDir, format: "terminal" });
 
         currentTargetDir = targetDir;
+        latestTargetDir = targetDir;
         latestResult = result;
         initialScanError = null;
 
@@ -227,7 +257,7 @@ export async function startUiServer(
         const status = err instanceof BadRequestError ? 400 : 500;
         const msg = err instanceof Error ? err.message : String(err);
         res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ success: false, error: msg }));
+        res.end(JSON.stringify({ success: false, error: sanitizeUiErrorMessage(msg) }));
       } finally {
         isScanning = false;
       }
@@ -242,7 +272,12 @@ export async function startUiServer(
         res.end(JSON.stringify({ path: selected }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ path: null, error: err?.message }));
+        res.end(
+          JSON.stringify({
+            path: null,
+            error: sanitizeUiErrorMessage(err?.message || "ダイアログの起動に失敗しました"),
+          })
+        );
       }
       return;
     }
@@ -255,7 +290,12 @@ export async function startUiServer(
         res.end(JSON.stringify({ path: selected }));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ path: null, error: err?.message }));
+        res.end(
+          JSON.stringify({
+            path: null,
+            error: sanitizeUiErrorMessage(err?.message || "ダイアログの起動に失敗しました"),
+          })
+        );
       }
       return;
     }
@@ -270,23 +310,25 @@ export async function startUiServer(
   let attempts = 0;
 
   return new Promise((resolve, reject) => {
+    server.once("listening", async () => {
+      const actualPort = (server.address() as any).port;
+      boundPort = actualPort;
+      const url = `http://127.0.0.1:${actualPort}`;
+
+      console.log("");
+      console.log(pc.bold(pc.cyan("  ▲ shipguard UI")) + pc.gray(" — ローカルダッシュボード稼働中"));
+      console.log(pc.green(`  ✔ ダッシュボードURL: ${pc.underline(pc.bold(url))}`));
+      console.log(pc.gray("  (Ctrl + C で終了します)\n"));
+
+      if (options.open !== false) {
+        await openInBrowser(url);
+      }
+
+      resolve({ server, port: actualPort, url });
+    });
+
     function tryListen(port: number) {
-      server.listen(port, "127.0.0.1", async () => {
-        const actualPort = (server.address() as any).port;
-        boundPort = actualPort;
-        const url = `http://127.0.0.1:${actualPort}`;
-
-        console.log("");
-        console.log(pc.bold(pc.cyan("  ▲ shipguard UI")) + pc.gray(" — ローカルダッシュボード稼働中"));
-        console.log(pc.green(`  ✔ ダッシュボードURL: ${pc.underline(pc.bold(url))}`));
-        console.log(pc.gray("  (Ctrl + C で終了します)\n"));
-
-        if (options.open !== false) {
-          await openInBrowser(url);
-        }
-
-        resolve({ server, port: actualPort, url });
-      });
+      server.listen(port, "127.0.0.1");
     }
 
     server.on("error", (err: any) => {
