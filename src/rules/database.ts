@@ -25,8 +25,24 @@ export const databaseRlsRule: Rule = {
   check(context: ScanContext): Violation[] {
     const violations: Violation[] = [];
 
-    // マイグレーションSQLファイル群（.sql）を対象とする
-    const sqlFiles = context.files.filter((f) => f.path.endsWith(".sql"));
+    // 設定された migrationsDir 配下のマイグレーションSQLファイル群（.sql）を対象とする
+    const rawMigrationsDir = context.config.database?.migrationsDir ?? "supabase/migrations";
+    const normalizedDir = rawMigrationsDir
+      .replace(/\\/g, "/")
+      .replace(/^\.\//, "")
+      .replace(/\/+$/, "");
+
+    const sqlFiles = context.files.filter((f) => {
+      const normalizedPath = f.path.replace(/\\/g, "/").replace(/^\.\//, "");
+      if (!normalizedPath.endsWith(".sql")) {
+        return false;
+      }
+      if (!normalizedDir || normalizedDir === ".") {
+        return true;
+      }
+      return normalizedPath.startsWith(`${normalizedDir}/`);
+    });
+
     if (sqlFiles.length === 0) {
       return violations;
     }
@@ -95,13 +111,13 @@ export const databaseRlsRule: Rule = {
 
       if (!enabledRlsTables.has(normalizedName)) {
         violations.push({
-          ruleId: "SEC-003",
-          ruleName: "データベース RLS 未有効化検知",
+          ruleId: databaseRlsRule.id,
+          ruleName: databaseRlsRule.name,
           filePath: tableInfo.filePath,
           line: tableInfo.line,
           message: `テーブル '${tableInfo.name}' で Row Level Security (RLS) が有効化されていません。'ALTER TABLE "${tableInfo.name}" ENABLE ROW LEVEL SECURITY;' をマイグレーションに追加してください`,
           snippet: tableInfo.snippet,
-          severity: "high",
+          severity: databaseRlsRule.defaultSeverity,
         });
       }
     }

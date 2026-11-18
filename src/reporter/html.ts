@@ -63,9 +63,6 @@ export function formatHtmlReport(result: ScanResult): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>shipguard Audit Report</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #09090b;
@@ -80,8 +77,10 @@ export function formatHtmlReport(result: ScanResult): string {
       --medium: #eab308;
       --low: #3b82f6;
       --pass: #10b981;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-sans); }
     body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1.5rem; }
     .container { max-width: 1000px; margin: 0 auto; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
@@ -105,6 +104,8 @@ export function formatHtmlReport(result: ScanResult): string {
     .filter-btn.active, .filter-btn:hover { background: #18181b; color: var(--text); border-color: #3f3f46; }
     .violations-list { display: flex; flex-direction: column; gap: 0.75rem; }
     .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.15rem; }
+    .violation-card { transition: border-color 0.15s ease; }
+    .violation-card:hover { border-color: #3f3f46; }
     .card-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
     .badge { font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
     .badge-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }

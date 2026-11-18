@@ -62,7 +62,21 @@ export const clientEnvSecretsRule: Rule = {
     const violations: Violation[] = [];
 
     for (const file of context.files) {
-      const isEnvFile = path.basename(file.path).startsWith(".env");
+      const baseName = path.posix.basename(file.path.replace(/\\/g, "/"));
+      const isTemplateEnv =
+        baseName === ".env.example" ||
+        baseName === ".env.sample" ||
+        baseName === ".env.template" ||
+        (baseName.startsWith(".env.") &&
+          (baseName.endsWith(".example") ||
+            baseName.endsWith(".sample") ||
+            baseName.endsWith(".template")));
+
+      if (isTemplateEnv) {
+        continue;
+      }
+
+      const isEnvFile = baseName === ".env" || baseName.startsWith(".env.");
       const isSourceCode = /\.(ts|tsx|js|jsx|mjs)$/.test(file.path);
 
       if (!isEnvFile && !isSourceCode) {
@@ -92,14 +106,14 @@ export const clientEnvSecretsRule: Rule = {
             const isSensitive = SENSITIVE_KEYWORDS.some((kw) => upperName.includes(kw));
             if (isSensitive) {
               violations.push({
-                ruleId: "SEC-002",
-                ruleName: "クライアント公開プレフィックス秘密情報検知",
+                ruleId: clientEnvSecretsRule.id,
+                ruleName: clientEnvSecretsRule.name,
                 filePath: file.path,
                 line: lineIndex + 1,
                 column: match.index + 1,
                 message: `公開環境変数プレフィックス '${prefix}' が付与された変数 '${varName}' に秘密情報が含まれている可能性があります`,
                 snippet: lineContent.trim(),
-                severity: "high",
+                severity: clientEnvSecretsRule.defaultSeverity,
               });
             }
           }
@@ -142,13 +156,13 @@ export const envSyncRule: Rule = {
 
     if (localEnvFiles.length === 0) {
       violations.push({
-        ruleId: "CFG-001",
-        ruleName: "環境変数テンプレート未設定検知",
+        ruleId: envSyncRule.id,
+        ruleName: envSyncRule.name,
         filePath: exampleFile.path,
         line: 1,
         message: `${exampleFile.path} が存在しますが、ローカル環境変数ファイル（.env または .env.local）が見つかりません`,
         snippet: exampleFile.path,
-        severity: "low",
+        severity: envSyncRule.defaultSeverity,
       });
       return violations;
     }
@@ -164,13 +178,13 @@ export const envSyncRule: Rule = {
     for (const item of exampleKeys) {
       if (!definedKeys.has(item.key)) {
         violations.push({
-          ruleId: "CFG-001",
-          ruleName: "環境変数テンプレート未設定検知",
+          ruleId: envSyncRule.id,
+          ruleName: envSyncRule.name,
           filePath: exampleFile.path,
           line: item.line,
           message: `環境変数 '${item.key}' が .env.example に定義されていますが、ローカル環境変数（.env/.env.local）に設定されていません`,
           snippet: `${item.key}=`,
-          severity: "low",
+          severity: envSyncRule.defaultSeverity,
         });
       }
     }

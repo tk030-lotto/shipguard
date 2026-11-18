@@ -29,10 +29,9 @@ export async function executeRules(context: ScanContext): Promise<Violation[]> {
     const ruleViolations = await rule.check(context);
 
     for (const violation of ruleViolations) {
-      // ユーザー設定の Severity があれば上書き
-      if (configuredSeverity) {
-        violation.severity = configuredSeverity;
-      }
+      // Rule メタデータおよびユーザー設定の Severity を単一真実源として適用
+      violation.ruleName = rule.name;
+      violation.severity = configuredSeverity ?? rule.defaultSeverity;
       allViolations.push(violation);
     }
   }

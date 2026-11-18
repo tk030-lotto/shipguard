@@ -41,6 +41,7 @@ export interface ScanContext {
   rootDir: string;
   files: FileEntry[];
   config: ShipguardConfig;
+  showSecrets?: boolean;
 }
 
 export interface Rule {
@@ -91,6 +92,11 @@ export interface AuditLogRecord {
   }>;
 }
 
+export interface AuditLogReadResult {
+  records: AuditLogRecord[];
+  skippedLines: number;
+}
+
 export interface ScanOptions {
   strict?: boolean;
   format?: "terminal" | "markdown" | "json" | "html";
@@ -98,4 +104,6 @@ export interface ScanOptions {
   open?: boolean;
   ignore?: string[];
   cwd?: string;
+  showSecrets?: boolean;
+  skipAuditLog?: boolean;
 }

@@ -78,14 +78,14 @@ export const corsRule: Rule = {
 
           if (match) {
             violations.push({
-              ruleId: "SEC-004",
-              ruleName: "ワイルドカードCORS設定検知",
+              ruleId: corsRule.id,
+              ruleName: corsRule.name,
               filePath: file.path,
               line: lineIndex + 1,
               column: match.index + 1,
               message: `${pattern.message}。本番環境では許可する信頼ドメイン（オリジン）を明示的に指定することを推奨します`,
               snippet: lineContent.trim(),
-              severity: "medium",
+              severity: corsRule.defaultSeverity,
             });
           }
         }

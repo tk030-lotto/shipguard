@@ -13,6 +13,8 @@ export { formatJsonReport } from "./json.js";
 export { formatMarkdownReport } from "./markdown.js";
 export { printScanReport } from "./terminal.js";
 
+export const VALID_REPORT_FORMATS = ["terminal", "markdown", "json", "html"] as const;
+
 /**
  * フォーマットおよび出力先オプションに基づいてレポートを出力
  */
@@ -21,6 +23,11 @@ export async function outputReport(
   options: ScanOptions = {}
 ): Promise<void> {
   const format = options.format ?? "terminal";
+  if (!VALID_REPORT_FORMATS.includes(format)) {
+    throw new Error(
+      `不明な出力形式が指定されました: ${format} (指定可能: ${VALID_REPORT_FORMATS.join(", ")})`
+    );
+  }
   let content: string | null = null;
 
   if (format === "json") {

@@ -85,6 +85,11 @@ export const secretsRule: Rule = {
 
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
         const lineContent = lines[lineIndex];
+        const lineMatches: Array<{
+          pattern: SecretPattern;
+          matchedString: string;
+          colNum: number;
+        }> = [];
 
         for (const pattern of SECRET_PATTERNS) {
           // regexのlastIndexをリセットして走査
@@ -103,21 +108,39 @@ export const secretsRule: Rule = {
               continue;
             }
 
-            const masked = maskSecret(matchedString);
-            const lineNum = lineIndex + 1;
-            const colNum = match.index + 1;
-
-            violations.push({
-              ruleId: "SEC-001",
-              ruleName: "ハードコードシークレット検知",
-              filePath: file.path,
-              line: lineNum,
-              column: colNum,
-              message: `${pattern.message} (${pattern.name}: ${masked})`,
-              snippet: lineContent.trim(),
-              severity: "critical",
+            lineMatches.push({
+              pattern,
+              matchedString,
+              colNum: match.index + 1,
             });
           }
+        }
+
+        if (lineMatches.length === 0) {
+          continue;
+        }
+
+        const rawSnippet = lineContent.trim();
+        let displaySnippet = rawSnippet;
+        if (!context.showSecrets) {
+          for (const m of lineMatches) {
+            displaySnippet = displaySnippet.split(m.matchedString).join(maskSecret(m.matchedString));
+          }
+        }
+
+        const lineNum = lineIndex + 1;
+        for (const m of lineMatches) {
+          const masked = maskSecret(m.matchedString);
+          violations.push({
+            ruleId: secretsRule.id,
+            ruleName: secretsRule.name,
+            filePath: file.path,
+            line: lineNum,
+            column: m.colNum,
+            message: `${m.pattern.message} (${m.pattern.name}: ${masked})`,
+            snippet: displaySnippet,
+            severity: secretsRule.defaultSeverity,
+          });
         }
       }
     }

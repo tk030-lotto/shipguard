@@ -7,5 +7,5 @@ export { runInit } from "./commands/init.js";
 export { runHistory } from "./commands/history.js";
 export { startUiServer } from "./commands/ui.js";
 export { outputReport, formatJsonReport, formatMarkdownReport, formatHtmlReport, printScanReport } from "./reporter/index.js";
-export { appendAuditLog, readAuditLogs } from "./logger/index.js";
+export { appendAuditLog, readAuditLogs, readAuditLogsDetailed, resolveSafeLogPath } from "./logger/index.js";
 export { runCLI } from "./cli.js";

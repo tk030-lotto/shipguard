@@ -2,9 +2,28 @@ import { exec } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { AuditLogRecord, ScanResult, ShipguardConfig } from "../types/index.js";
+import type { AuditLogReadResult, AuditLogRecord, ScanResult, ShipguardConfig } from "../types/index.js";
 
 const execAsync = promisify(exec);
+
+/**
+ * ログファイルのパスが rootDir の内側に収まることを検証して絶対パスを返す
+ */
+export function resolveSafeLogPath(
+  rootDir: string,
+  logRelativePath: string = ".shipguard/audit.log"
+): string {
+  if (!logRelativePath || logRelativePath.includes("\0")) {
+    throw new Error("logging.path が不正です");
+  }
+  const resolvedRoot = path.resolve(rootDir);
+  const resolvedLog = path.resolve(resolvedRoot, logRelativePath);
+  const rel = path.relative(resolvedRoot, resolvedLog);
+  if (!rel || rel === "." || rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`logging.path が対象ディレクトリの外を指しています: ${logRelativePath}`);
+  }
+  return resolvedLog;
+}
 
 /**
  * Gitコミットハッシュを取得（取得できない場合はundefined）
@@ -64,7 +83,7 @@ export async function appendAuditLog(
   }
 
   const logRelativePath = config?.logging?.path || ".shipguard/audit.log";
-  const logAbsolutePath = path.resolve(rootDir, logRelativePath);
+  const logAbsolutePath = resolveSafeLogPath(rootDir, logRelativePath);
   const logDir = path.dirname(logAbsolutePath);
 
   const gitHash = result.gitCommitHash ?? (await getGitCommitHash(rootDir));
@@ -78,30 +97,52 @@ export async function appendAuditLog(
 }
 
 /**
+ * 監査ログを全件読み込み、スキップした不正行の件数とともに返す
+ */
+export async function readAuditLogsDetailed(
+  logFilePath: string
+): Promise<AuditLogReadResult> {
+  try {
+    const content = await fs.readFile(logFilePath, "utf8");
+    const lines = content.split("\n").filter((l) => l.trim().length > 0);
+    const records: AuditLogRecord[] = [];
+    let skippedLines = 0;
+
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as AuditLogRecord;
+        if (
+          !parsed ||
+          typeof parsed !== "object" ||
+          typeof parsed.id !== "string" ||
+          typeof parsed.timestamp !== "string" ||
+          !parsed.summary ||
+          typeof parsed.passed !== "boolean"
+        ) {
+          skippedLines++;
+          continue;
+        }
+        records.push(parsed);
+      } catch {
+        skippedLines++;
+      }
+    }
+
+    return { records, skippedLines };
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return { records: [], skippedLines: 0 };
+    }
+    throw error;
+  }
+}
+
+/**
  * 監査ログを全件読み込む
  */
 export async function readAuditLogs(
   logFilePath: string
 ): Promise<AuditLogRecord[]> {
-  try {
-    const content = await fs.readFile(logFilePath, "utf8");
-    const lines = content.split("\n").filter((l) => l.trim().length > 0);
-    const records: AuditLogRecord[] = [];
-
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line) as AuditLogRecord;
-        records.push(parsed);
-      } catch {
-        // 不正な行はスキップ
-      }
-    }
-
-    return records;
-  } catch (error: any) {
-    if (error?.code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  }
+  const { records } = await readAuditLogsDetailed(logFilePath);
+  return records;
 }

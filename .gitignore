@@ -23,9 +23,11 @@ RECORD.md
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+CORE-RULES.md
+UI-STANDARD.md
+PRIMARY-REVIEW-*.md
 
-# Tests directory (singular)
-test/
+
 
 # 仕様書除外（フェーズ2-C-β）
 REQUIREMENTS*.md

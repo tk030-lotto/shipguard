@@ -1,5 +1,11 @@
 import type { ScanResult, Violation } from "../types/index.js";
 
+function getSafeCodeFence(snippet: string): string {
+  const matches = snippet.match(/`+/g);
+  const maxLen = matches ? Math.max(...matches.map((m) => m.length)) : 0;
+  return "`".repeat(Math.max(3, maxLen + 1));
+}
+
 function getSeverityBadge(severity: Violation["severity"]): string {
   switch (severity) {
     case "critical":
@@ -66,10 +72,11 @@ export function formatMarkdownReport(result: ScanResult): string {
       lines.push(`- **Details:** ${v.message}`);
 
       if (v.snippet) {
+        const fence = getSafeCodeFence(v.snippet);
         lines.push("");
-        lines.push("```typescript");
+        lines.push(`${fence}typescript`);
         lines.push(v.snippet);
-        lines.push("```");
+        lines.push(fence);
       }
       lines.push("");
     }
